@@ -22,6 +22,7 @@
     <img alt="Bun" src="https://img.shields.io/badge/Bun-runtime-000000?logo=bun&logoColor=white" />
   </p>
 </div>
+<img src="https://shiyu.dev/uploads/2026/06/8ca11243-afbf-49d1-86b4-e025b1a2d237-memoir.webp" />
 
 ## Features
 

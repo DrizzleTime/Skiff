@@ -21,6 +21,7 @@
     <img alt="Bun" src="https://img.shields.io/badge/Bun-runtime-000000?logo=bun&logoColor=white" />
   </p>
 </div>
+<img src="https://shiyu.dev/uploads/2026/06/7ed68c3f-d0d0-4196-8251-36b92bbb3e2d-memoir.webp" />
 
 ## 功能
 
