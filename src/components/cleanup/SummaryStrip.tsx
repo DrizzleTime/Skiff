@@ -17,7 +17,7 @@ export function SummaryStrip({
   const { locale, t } = useI18n();
 
   return (
-    <div className="flex min-h-[38px] items-center gap-0 border-b border-[#eeeeee] bg-white px-7 max-[980px]:px-6 max-[720px]:h-auto max-[720px]:min-h-0 max-[720px]:flex-col max-[720px]:items-start max-[720px]:gap-1.5 max-[720px]:px-3.5 max-[720px]:py-2">
+    <div className="flex min-h-[38px] items-center gap-0 border-b border-black/5 bg-[#f7f8f6] px-7 max-[980px]:px-6 max-[720px]:h-auto max-[720px]:min-h-0 max-[720px]:flex-col max-[720px]:items-start max-[720px]:gap-1.5 max-[720px]:px-3.5 max-[720px]:py-2">
       <MetricCell icon={Folder} label={t("summary.reclaimable")} value={formatSize(totalSize)} />
       <MetricCell icon={FileText} label={t("summary.files")} value={formatCount(totalFiles, locale)} />
       <MetricCell icon={CheckCircle2} label={t("summary.selected")} value={formatSize(selectedSize)} />

@@ -8,7 +8,7 @@ export function PageSurface({
   return (
     <section
       className={cn(
-        "min-w-0 min-h-0 overflow-visible rounded-md border-0 bg-white p-0",
+        "min-w-0 min-h-0 overflow-visible rounded-md border-0 bg-transparent p-0",
         className,
       )}
       {...props}
@@ -24,7 +24,7 @@ export function ToolStrip({
     <div
       className={cn(
         "mb-2.5 flex min-h-[38px] items-center justify-between gap-4 max-[720px]:flex-col max-[720px]:items-stretch",
-        "[&_p]:max-w-[680px] [&_p]:text-[13px] [&_p]:leading-normal [&_p]:text-[#515151]",
+        "[&_p]:max-w-[680px] [&_p]:text-[13px] [&_p]:leading-normal [&_p]:text-[#58616d]",
         "[&_button]:h-8 [&_button]:gap-1.5 [&_button]:rounded-md [&_button]:px-3 [&_button]:text-[13px]",
         className,
       )}
@@ -40,7 +40,7 @@ export function StatGrid({
   return (
     <div
       className={cn(
-        "mb-2.5 flex min-h-[34px] items-center gap-3.5 rounded-md border border-[#e6e6e6] bg-[#fafafa] px-3",
+        "mb-2.5 flex min-h-[34px] items-center gap-3.5 rounded-lg border border-black/5 bg-white/75 px-3 shadow-[0_1px_2px_rgba(15,23,42,0.03)]",
         "max-[720px]:h-auto max-[720px]:min-h-0 max-[720px]:flex-col max-[720px]:items-start max-[720px]:gap-1.5 max-[720px]:py-2",
         className,
       )}
@@ -56,7 +56,7 @@ export function ResultPanel({
   return (
     <div
       className={cn(
-        "overflow-visible rounded-md border border-[#e5e5e5] bg-white",
+        "overflow-visible rounded-lg border border-black/5 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
         className,
       )}
       {...props}
@@ -76,10 +76,10 @@ export function PanelTitle({
   return (
     <div
       className={cn(
-        "flex min-h-[52px] items-center justify-between gap-4 border-b border-[#eeeeee] bg-white px-5",
+        "flex min-h-[52px] items-center justify-between gap-4 border-b border-black/5 bg-[#fbfbfa] px-5",
         "max-[720px]:flex-col max-[720px]:items-stretch",
-        "[&_strong]:text-sm [&_strong]:font-[760] [&_strong]:leading-tight [&_strong]:text-[#171717]",
-        "[&_span]:mt-1 [&_span]:block [&_span]:text-xs [&_span]:leading-tight [&_span]:text-[#7a7a7a]",
+        "[&_strong]:text-sm [&_strong]:font-[680] [&_strong]:leading-tight [&_strong]:text-[#14191f]",
+        "[&_span]:mt-1 [&_span]:block [&_span]:text-xs [&_span]:leading-tight [&_span]:text-[#7c8490]",
         "[&_button]:h-8 [&_button]:gap-1.5 [&_button]:rounded-md [&_button]:px-3 [&_button]:text-[13px]",
         className,
       )}

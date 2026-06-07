@@ -32,20 +32,20 @@ export function TargetListPane({
   const busy = runState === "scanning" || runState === "cleaning";
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-[#e5e5e5] bg-white max-[980px]:border-r-0 max-[720px]:min-h-[520px]">
-      <div className="flex min-h-[52px] items-center justify-between gap-3.5 border-b border-[#eeeeee] bg-white px-5 py-[10px] pb-[9px] max-[720px]:px-4">
+    <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-black/5 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] max-[980px]:border-r-0 max-[720px]:min-h-[520px]">
+      <div className="flex min-h-[52px] items-center justify-between gap-3.5 border-b border-black/5 bg-[#fbfbfa] px-5 py-[10px] pb-[9px] max-[720px]:px-4">
         <div>
-          <strong className="block text-sm font-[760] leading-tight text-[#171717]">
+          <strong className="block text-sm font-[680] leading-tight text-[#14191f]">
             {t("targetList.title")}
           </strong>
-          <span className="mt-1 text-xs leading-tight text-[#7a7a7a]">
+          <span className="mt-1 text-xs leading-tight text-[#7c8490]">
             {t("targetList.summary", {
               available: formatCount(availableCount, locale),
               total: formatCount(targets.length, locale),
             })}
           </span>
         </div>
-        <span className="whitespace-nowrap text-xs leading-tight text-[#7a7a7a]">
+        <span className="whitespace-nowrap text-xs leading-tight text-[#7c8490]">
           {t("format.selectedItems", { count: formatCount(selectedCount, locale) })}
         </span>
       </div>

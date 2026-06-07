@@ -11,11 +11,11 @@ export function TargetInspector({ target }: { target: CleanupTarget | null }) {
 
   if (!target) {
     return (
-      <section className="rounded-md border border-[#e5e5e5] bg-white p-3">
-        <h2 className="text-[13px] font-[760] leading-tight tracking-normal text-[#151515]">
+      <section className="rounded-lg border border-black/5 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <h2 className="text-[13px] font-[680] leading-tight tracking-normal text-[#14191f]">
           {t("inspector.title")}
         </h2>
-        <p className="mt-2 text-xs leading-normal text-[#707070]">
+        <p className="mt-2 text-xs leading-normal text-[#7c8490]">
           {t("inspector.noTarget")}
         </p>
       </section>
@@ -25,17 +25,17 @@ export function TargetInspector({ target }: { target: CleanupTarget | null }) {
   const targetCopy = getLocalizedTarget(target, locale);
 
   return (
-    <section className="rounded-md border border-[#e5e5e5] bg-white p-3">
-      <h2 className="text-[13px] font-[760] leading-tight tracking-normal text-[#151515]">
+    <section className="rounded-lg border border-black/5 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+      <h2 className="text-[13px] font-[680] leading-tight tracking-normal text-[#14191f]">
         {t("inspector.title")}
       </h2>
       <div className="mt-3 flex items-center justify-between gap-2">
-        <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-[720] text-[#171717]">
+        <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-[680] text-[#151b22]">
           {targetCopy.name}
         </strong>
         <Badge variant={target.risk}>{t(riskLabelKeys[target.risk])}</Badge>
       </div>
-      <p className="mt-2 text-xs leading-normal text-[#707070]">{targetCopy.description}</p>
+      <p className="mt-2 text-xs leading-normal text-[#7c8490]">{targetCopy.description}</p>
 
       <div className="mt-3 grid gap-1.5">
         <DetailLine label={t("inspector.category")} value={t(categoryLabelKeys[target.category])} />
@@ -45,7 +45,7 @@ export function TargetInspector({ target }: { target: CleanupTarget | null }) {
         <DetailLine label={t("apps.packageDetail.permission")} value={target.requires_privilege ? t("inspector.needsPrivilege") : t("inspector.currentUser")} />
       </div>
 
-      <code className="mt-3 block max-w-full whitespace-pre-wrap rounded-[5px] border border-[#dddddd] bg-[#eeeeee] px-1.5 py-1 font-mono text-[11px] leading-normal text-[#555555] [overflow-wrap:anywhere]">
+      <code className="mt-3 block max-w-full whitespace-pre-wrap rounded-md border border-black/5 bg-[#f1f3f2] px-1.5 py-1 font-mono text-[11px] leading-normal text-[#5d6670] [overflow-wrap:anywhere]">
         {target.path}
       </code>
       {target.error ? (

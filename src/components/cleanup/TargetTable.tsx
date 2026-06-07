@@ -37,7 +37,7 @@ export function TargetTable({
       <div
         className={cn(
           tableGridClass,
-          "min-h-8 border-b border-[#e2e2e2] bg-[#fafafa] px-5 text-[11px] font-[650] text-[#707070] max-[720px]:hidden",
+          "min-h-8 border-b border-black/5 bg-[#fbfbfa] px-5 text-[11px] font-[620] text-[#7c8490] max-[720px]:hidden",
         )}
         role="row"
       >
@@ -61,28 +61,28 @@ export function TargetTable({
             <div
               className={cn(
                 tableGridClass,
-                "min-h-[54px] border-b border-[#eeeeee] bg-white px-5 py-2 [content-visibility:auto] [contain-intrinsic-size:54px] hover:bg-[#f8f8f8] max-[720px]:px-4",
+                "min-h-[54px] border-b border-black/5 bg-white px-5 py-2 [content-visibility:auto] [contain-intrinsic-size:54px] hover:bg-[#fafaf8] max-[720px]:px-4",
                 selectedTargetId === target.id &&
-                  "bg-[#f7f7f7] shadow-[inset_3px_0_0_#111111]",
+                  "bg-[#f7faf8] shadow-[inset_3px_0_0_#145c53]",
               )}
               key={target.id}
               onClick={() => onSelectTarget(target.id)}
               role="row"
             >
-              <div className="grid place-items-center text-[#222222]" role="cell">
+              <div className="grid place-items-center text-[#45505c]" role="cell">
                 <Icon size={18} strokeWidth={1.9} />
               </div>
 
               <div className="grid min-w-0 gap-1" role="cell">
-                <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-bold leading-tight text-[#151515]">
+                <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-[680] leading-tight text-[#151b22]">
                   {targetCopy.name}
                 </strong>
-                <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-tight text-[#747474]">
+                <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-tight text-[#7c8490]">
                   {targetCopy.description}
                 </span>
               </div>
 
-              <span className="text-xs text-[#555555] max-[720px]:hidden" role="cell">
+              <span className="text-xs text-[#68717b] max-[720px]:hidden" role="cell">
                 {t(categoryLabelKeys[target.category])}
               </span>
 
@@ -90,11 +90,11 @@ export function TargetTable({
                 <Badge variant={target.risk}>{t(riskLabelKeys[target.risk])}</Badge>
               </span>
 
-              <strong className="whitespace-nowrap text-right text-[13px] font-[720] text-[#171717]" role="cell">
+              <strong className="whitespace-nowrap text-right text-[13px] font-[680] text-[#151b22]" role="cell">
                 {formatSize(target.size)}
               </strong>
 
-              <span className="whitespace-nowrap text-right text-xs text-[#555555] max-[720px]:hidden" role="cell">
+              <span className="whitespace-nowrap text-right text-xs text-[#68717b] max-[720px]:hidden" role="cell">
                 {formatCount(target.files, locale)}
               </span>
 

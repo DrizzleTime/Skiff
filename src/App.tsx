@@ -419,17 +419,17 @@ function App() {
   const messageText = errorMessage ?? diskError;
 
   return (
-    <main className="grid h-full w-full grid-rows-[38px_minmax(0,1fr)] overflow-hidden rounded-2xl border border-black/10 bg-white max-[720px]:h-auto max-[720px]:min-h-screen max-[720px]:grid-rows-[38px_auto] max-[720px]:overflow-visible max-[720px]:rounded-none max-[720px]:border-0">
+    <main className="grid h-full w-full grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-2xl border border-black/10 bg-[#f3f5f7] shadow-[0_24px_80px_rgba(15,23,42,0.16)] max-[720px]:h-auto max-[720px]:min-h-screen max-[720px]:grid-rows-[40px_auto] max-[720px]:overflow-visible max-[720px]:rounded-none max-[720px]:border-0 max-[720px]:shadow-none">
       <WindowTitlebar />
 
-      <div className="grid min-h-0 min-w-0 grid-cols-[216px_minmax(0,1fr)] overflow-hidden bg-white max-[720px]:min-h-[calc(100vh-38px)] max-[720px]:grid-cols-1 max-[720px]:overflow-visible">
+      <div className="grid min-h-0 min-w-0 grid-cols-[232px_minmax(0,1fr)] overflow-hidden bg-[#f7f8f6] max-[720px]:min-h-[calc(100vh-40px)] max-[720px]:grid-cols-1 max-[720px]:overflow-visible">
         <AppSidebar
           activeView={activeView}
           onSelectView={selectView}
           sizeForView={sizeForView}
         />
 
-        <section className="grid min-h-0 min-w-0 grid-rows-[72px_auto_auto_minmax(0,1fr)_40px] overflow-hidden bg-white max-[720px]:min-h-[720px] max-[720px]:overflow-visible">
+        <section className="grid min-h-0 min-w-0 grid-rows-[76px_auto_auto_minmax(0,1fr)_40px] overflow-hidden bg-[#f7f8f6] max-[720px]:min-h-[720px] max-[720px]:overflow-visible">
           <Toolbar
             activeView={activeView}
             canClean={canClean}
@@ -474,7 +474,7 @@ function App() {
 
           <div
             className={cn(
-              "grid min-h-0 items-stretch gap-[18px] overflow-hidden bg-white px-7 pt-4 pb-[18px] max-[980px]:grid-cols-1 max-[980px]:px-6 max-[980px]:pt-0 max-[980px]:pb-6 max-[720px]:overflow-visible max-[720px]:px-3.5 max-[720px]:pb-[18px]",
+              "grid min-h-0 items-stretch gap-[18px] overflow-hidden bg-[#f7f8f6] px-7 pt-5 pb-[18px] max-[980px]:grid-cols-1 max-[980px]:px-6 max-[980px]:pt-2 max-[980px]:pb-6 max-[720px]:overflow-visible max-[720px]:px-3.5 max-[720px]:pb-[18px]",
               showInspector
                 ? "grid-cols-[minmax(0,1fr)_318px]"
                 : "grid-cols-[minmax(0,1fr)]",
@@ -528,14 +528,14 @@ function App() {
             </div>
 
             {showInspector ? (
-              <aside className="sticky top-0 grid max-h-full min-w-0 content-start gap-3 self-start overflow-auto bg-white max-[980px]:hidden">
+              <aside className="sticky top-0 grid max-h-full min-w-0 content-start gap-3 self-start overflow-auto bg-transparent max-[980px]:hidden">
                 <DiskStatusPanel diskStatus={diskStatus} />
                 <TargetInspector target={selectedTarget} />
               </aside>
             ) : null}
           </div>
 
-          <footer className="flex min-h-10 min-w-0 items-center justify-between gap-2 border-t border-[#eeeeee] bg-white px-7 text-[#666666] max-[980px]:px-6 max-[720px]:h-auto max-[720px]:flex-col max-[720px]:items-stretch">
+          <footer className="flex min-h-10 min-w-0 items-center justify-between gap-2 border-t border-black/5 bg-[#f7f8f6] px-7 text-[#69727d] max-[980px]:px-6 max-[720px]:h-auto max-[720px]:flex-col max-[720px]:items-stretch">
             <div className="flex min-w-0 items-center gap-[7px]">
               <CheckCircle2 size={15} />
               <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-tight">

@@ -19,7 +19,7 @@ export function WindowTitlebar() {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex min-h-[38px] min-w-0 items-stretch border-b border-[#dddddd] bg-[linear-gradient(180deg,#fbfbfb_0%,#f2f2f2_100%)] shadow-[inset_0_1px_0_rgb(255_255_255_/_86%)] select-none max-[720px]:sticky">
+    <header className="sticky top-0 z-20 flex min-h-10 min-w-0 items-stretch border-b border-black/5 bg-[#f3f5f7] shadow-[inset_0_1px_0_rgb(255_255_255_/_72%)] select-none max-[720px]:sticky">
       <div className="group absolute top-0 right-3.5 z-[2] flex h-full items-center gap-2 pointer-events-none" aria-label={t("window.controls")}>
         <button
           aria-label={t("window.minimize")}
@@ -48,7 +48,7 @@ export function WindowTitlebar() {
       </div>
 
       <div className="flex min-w-0 flex-1 items-center justify-center px-28" onMouseDown={handleDrag}>
-        <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-xs font-bold leading-none text-[#525252]">
+        <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-xs font-[650] leading-none text-[#5f6873]">
           Skiff
         </strong>
       </div>
@@ -58,7 +58,7 @@ export function WindowTitlebar() {
 
 function controlClass(colorClass: string) {
   return cn(
-    "grid size-[13px] place-items-center rounded-full border border-black/10 p-0 leading-none text-black/60 pointer-events-auto hover:brightness-95",
+    "grid size-[13px] place-items-center rounded-full border border-black/10 p-0 leading-none text-black/60 pointer-events-auto shadow-[inset_0_1px_0_rgb(255_255_255_/_45%)] hover:brightness-95",
     colorClass,
   );
 }

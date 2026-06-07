@@ -42,12 +42,12 @@ export function Toolbar({
     : t(viewDescriptionKeys[activeView]);
 
   return (
-    <header className="grid min-h-[72px] min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-[#eeeeee] bg-white px-7 max-[980px]:px-6 max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_auto] max-[720px]:px-3 max-[720px]:py-2.5">
+    <header className="grid min-h-[76px] min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-black/5 bg-[#f7f8f6] px-7 max-[980px]:px-6 max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_auto] max-[720px]:px-3 max-[720px]:py-2.5">
       <div className="min-w-0">
-        <h1 className="overflow-hidden text-ellipsis whitespace-nowrap text-[25px] font-extrabold leading-tight tracking-normal text-[#151515]">
+        <h1 className="overflow-hidden text-ellipsis whitespace-nowrap text-[24px] font-[720] leading-tight tracking-normal text-[#101419]">
           {t(viewLabelKeys[activeView])}
         </h1>
-        <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-tight text-[#424242]">
+        <span className="mt-1.5 block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-tight text-[#69727d]">
           {subtitle}
         </span>
       </div>
@@ -63,7 +63,7 @@ export function Toolbar({
           {runState === "confirming" ? (
             <>
               <Button
-                className="h-8 gap-1.5 rounded-md px-3 text-[13px]"
+                className="h-9 gap-1.5 px-3.5 text-[13px]"
                 onClick={onCancel}
                 variant="outline"
               >
@@ -71,7 +71,7 @@ export function Toolbar({
                 {t("actions.cancel")}
               </Button>
               <Button
-                className="h-8 gap-1.5 rounded-md bg-[#181818] px-3 text-[13px]"
+                className="h-9 gap-1.5 px-3.5 text-[13px]"
                 disabled={!canClean}
                 onClick={onConfirm}
                 variant="default"
@@ -83,7 +83,7 @@ export function Toolbar({
           ) : (
             <>
               <Button
-                className="h-8 gap-1.5 rounded-md px-3 text-[13px]"
+                className="h-9 gap-1.5 px-3.5 text-[13px]"
                 disabled={busy}
                 onClick={onScan}
                 variant="outline"
@@ -92,7 +92,7 @@ export function Toolbar({
                 {hasTargets ? t("actions.rescan") : t("actions.scan")}
               </Button>
               <Button
-                className="h-8 gap-1.5 rounded-md bg-[#181818] px-3 text-[13px]"
+                className="h-9 gap-1.5 px-3.5 text-[13px]"
                 disabled={!canClean}
                 onClick={onClean}
                 variant="default"
