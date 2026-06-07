@@ -1,13 +1,16 @@
 import { Search } from "lucide-react";
+import { useI18n } from "../../lib/i18n";
 import type { ActiveView } from "../../types/cleanup";
 import { CleanupEmptyState } from "./CleanupEmptyState";
 
 export function EmptyState({ activeView }: { activeView: ActiveView }) {
-  const title = activeView === "junk" ? "尚未扫描" : "暂无结果";
+  const { t } = useI18n();
+  const title =
+    activeView === "junk" ? t("empty.scan.notScanned") : t("empty.scan.noResult");
 
   return (
     <CleanupEmptyState
-      description="点击工具栏的扫描按钮读取当前用户缓存目录。"
+      description={t("empty.scan.description")}
       icon={Search}
       title={title}
     />

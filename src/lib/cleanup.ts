@@ -23,69 +23,69 @@ import type {
   CleanupTarget,
   RunState,
 } from "../types/cleanup";
+import type { I18nKey } from "./i18n";
 
 export const navItems: Array<{
   key: ActiveView;
-  label: string;
   icon: LucideIcon;
 }> = [
-  { key: "overview", label: "总览", icon: Grid2X2 },
-  { key: "junk", label: "垃圾清理", icon: Trash2 },
-  { key: "agent", label: "Agent 清理", icon: Bot },
-  { key: "developer", label: "应用清理", icon: Box },
-  { key: "duplicates", label: "重复文件", icon: Copy },
-  { key: "large-files", label: "大文件", icon: FileQuestion },
-  { key: "history", label: "清理记录", icon: Clock3 },
-  { key: "settings", label: "设置", icon: Settings },
-  { key: "about", label: "关于", icon: Info },
+  { key: "overview", icon: Grid2X2 },
+  { key: "junk", icon: Trash2 },
+  { key: "agent", icon: Bot },
+  { key: "developer", icon: Box },
+  { key: "duplicates", icon: Copy },
+  { key: "large-files", icon: FileQuestion },
+  { key: "history", icon: Clock3 },
+  { key: "settings", icon: Settings },
+  { key: "about", icon: Info },
 ];
 
-export const riskLabels: Record<CleanupRisk, string> = {
-  safe: "低风险",
-  review: "需确认",
-  careful: "高风险",
+export const riskLabelKeys: Record<CleanupRisk, I18nKey> = {
+  safe: "risk.safe",
+  review: "risk.review",
+  careful: "risk.careful",
 };
 
-export const categoryLabels: Record<CleanupCategory, string> = {
-  cache: "系统缓存",
-  browser: "浏览器缓存",
-  developer: "开发工具缓存",
-  flatpak: "Flatpak 数据",
-  package: "包管理缓存",
+export const categoryLabelKeys: Record<CleanupCategory, I18nKey> = {
+  cache: "category.cache",
+  browser: "category.browser",
+  developer: "category.developer",
+  flatpak: "category.flatpak",
+  package: "category.package",
 };
 
-export const viewLabels: Record<ActiveView, string> = {
-  overview: "总览",
-  junk: "垃圾清理",
-  agent: "Agent 清理",
-  developer: "应用清理",
-  duplicates: "重复文件",
-  "large-files": "大文件",
-  history: "清理记录",
-  settings: "设置",
-  about: "关于",
+export const viewLabelKeys: Record<ActiveView, I18nKey> = {
+  overview: "nav.overview",
+  junk: "nav.junk",
+  agent: "nav.agent",
+  developer: "nav.developer",
+  duplicates: "nav.duplicates",
+  "large-files": "nav.largeFiles",
+  history: "nav.history",
+  settings: "nav.settings",
+  about: "nav.about",
 };
 
-export const viewDescriptions: Record<ActiveView, string> = {
-  overview: "磁盘状态、清理结果与近期操作集中视图",
-  junk: "扫描状态",
-  agent: "检查本地 Agent 会话与运行记录占用",
-  developer: "查看已安装软件包，确认后执行卸载",
-  duplicates: "按内容识别重复文件，保留必要副本",
-  "large-files": "定位占用较高的文件，删除前逐项确认",
-  history: "查看最近一次清理或删除操作结果",
-  settings: "调整扫描阈值与清理偏好",
-  about: "了解 Skiff 的功能范围与安全边界",
+export const viewDescriptionKeys: Record<ActiveView, I18nKey> = {
+  overview: "view.overview.description",
+  junk: "view.junk.description",
+  agent: "view.agent.description",
+  developer: "view.developer.description",
+  duplicates: "view.duplicates.description",
+  "large-files": "view.largeFiles.description",
+  history: "view.history.description",
+  settings: "view.settings.description",
+  about: "view.about.description",
 };
 
-export const statusLabels: Record<RunState, string> = {
-  idle: "未扫描",
-  scanning: "正在扫描",
-  ready: "扫描完成",
-  confirming: "等待确认",
-  cleaning: "正在清理",
-  done: "清理完成",
-  error: "有错误",
+export const statusLabelKeys: Record<RunState, I18nKey> = {
+  idle: "status.idle",
+  scanning: "status.scanning",
+  ready: "status.ready",
+  confirming: "status.confirming",
+  cleaning: "status.cleaning",
+  done: "status.done",
+  error: "status.error",
 };
 
 export function isJunkCleanupView(view: ActiveView): view is "junk" {

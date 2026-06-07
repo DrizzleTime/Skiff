@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import { Checkbox } from "../ui/checkbox";
 import { formatDate, formatSize } from "../../lib/format";
+import { useI18n } from "../../lib/i18n";
 import type { FileItem } from "../../types/cleanup";
 import { CleanupEmptyState } from "./CleanupEmptyState";
 
@@ -13,12 +14,14 @@ export function FileRows({
   selectedPathSet: Set<string>;
   onToggleFile: (path: string) => void;
 }) {
+  const { locale, t } = useI18n();
+
   if (files.length === 0) {
     return (
       <CleanupEmptyState
-        description="扫描后会显示符合条件的文件。"
+        description={t("empty.file.description")}
         icon={FileText}
-        title="暂无结果"
+        title={t("empty.file.title")}
       />
     );
   }
@@ -46,11 +49,11 @@ export function FileRows({
           <span className="grid justify-items-end gap-1 max-[720px]:hidden">
             <strong className="text-sm text-[#101010]">{formatSize(file.size)}</strong>
             <span className="text-[11px] text-[#777777]">
-              {formatDate(file.modified)}
+              {formatDate(file.modified, locale, t("common.unknownTime"))}
             </span>
           </span>
           <Checkbox
-            aria-label={`选择${file.name}`}
+            aria-label={t("file.select", { name: file.name })}
             checked={selectedPathSet.has(file.path)}
             onChange={() => onToggleFile(file.path)}
             onClick={(event) => event.stopPropagation()}

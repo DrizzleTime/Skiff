@@ -1,0 +1,130 @@
+{
+  "__flatpak-app-cache": {
+    "name": "{name} cache",
+    "description": "Clean Flatpak application cache without deleting configuration, login state, or local data."
+  },
+  "__flatpak-app-data": {
+    "name": "{name} app data",
+    "description": "Reset Flatpak application data and configuration. Login state, local databases, and app configuration will be deleted."
+  },
+  "brave-cache": {
+    "name": "Brave cache",
+    "description": "Brave page resource cache. Bookmarks, passwords, and history are not included."
+  },
+  "bun-cache-clean": {
+    "name": "Bun cache",
+    "description": "Call Bun to clean package manager cache. Packages will be downloaded again when installing dependencies."
+  },
+  "cargo-cache": {
+    "name": "Cargo cache",
+    "description": "Cargo package and Git dependency cache. Rust projects will download dependencies again when building."
+  },
+  "ccache-cache": {
+    "name": "ccache cache",
+    "description": "C/C++ compiler cache. Compilation may be slower temporarily after cleaning."
+  },
+  "chrome-cache": {
+    "name": "Chrome cache",
+    "description": "Chrome page resource cache. Bookmarks, passwords, and history are not included."
+  },
+  "chromium-cache": {
+    "name": "Chromium cache",
+    "description": "Chromium page resource cache. Bookmarks, passwords, and history are not included."
+  },
+  "dnf-cache-clean": {
+    "name": "DNF/YUM cache",
+    "description": "Call the system package manager to clean package, metadata, and database caches."
+  },
+  "edge-cache": {
+    "name": "Edge cache",
+    "description": "Microsoft Edge page resource cache. Bookmarks, passwords, and history are not included."
+  },
+  "firefox-cache": {
+    "name": "Firefox cache",
+    "description": "Firefox page resource cache. Bookmarks, passwords, and history are not included."
+  },
+  "flatpak-cache": {
+    "name": "Flatpak download cache",
+    "description": "Clean Flatpak downloads, temporary repositories, and system cache directories."
+  },
+  "flatpak-unused-runtimes": {
+    "name": "Unused Flatpak runtimes",
+    "description": "Call flatpak to clean runtimes and extensions no longer required by applications. Size cannot be estimated reliably in advance."
+  },
+  "fontconfig-cache": {
+    "name": "Font index cache",
+    "description": "Font lookup cache. The system will rebuild it the next time fonts are loaded."
+  },
+  "go-cache": {
+    "name": "Go build cache",
+    "description": "Go build and module download cache. Builds will regenerate or download dependencies again."
+  },
+  "gtk-cache": {
+    "name": "GTK cache",
+    "description": "GTK component cache. Desktop apps will rebuild it as needed."
+  },
+  "homebrew-cache-clean": {
+    "name": "Homebrew cache",
+    "description": "Call Homebrew to clean download cache and old version cache."
+  },
+  "inet-cache": {
+    "name": "System network cache",
+    "description": "Windows user network cache. The system will rebuild it as needed."
+  },
+  "media-framework-cache": {
+    "name": "Media framework cache",
+    "description": "GStreamer and Glycin media processing cache. It will be rebuilt as needed."
+  },
+  "mozilla-cache": {
+    "name": "Firefox cache",
+    "description": "Firefox page resource cache. Bookmarks, passwords, and history are not included."
+  },
+  "npm-cache-clean": {
+    "name": "npm cache",
+    "description": "Call npm to clean download cache. Packages will be downloaded again when installing dependencies."
+  },
+  "pip-cache-clean": {
+    "name": "pip cache",
+    "description": "Call pip to clean wheel cache. Packages will be downloaded again when installing dependencies."
+  },
+  "playwright-cache": {
+    "name": "Playwright cache",
+    "description": "Browser cache downloaded by Playwright. Browsers will be downloaded again when running tests."
+  },
+  "pnpm-cache": {
+    "name": "pnpm cache",
+    "description": "pnpm download cache. Packages will be downloaded again when installing dependencies."
+  },
+  "safari-cache": {
+    "name": "Safari cache",
+    "description": "Safari page resource cache. Bookmarks and passwords are not included."
+  },
+  "shader-cache": {
+    "name": "Graphics shader cache",
+    "description": "Mesa, Radeon, and Qt/GTK rendering cache. It will be rebuilt as needed."
+  },
+  "system-cache": {
+    "name": "System user cache",
+    "description": "macOS user cache directory. Apps will regenerate caches as needed."
+  },
+  "temp-files": {
+    "name": "Temporary files",
+    "description": "Windows user temp directory. Files currently in use will fail to clean and be kept."
+  },
+  "thumbnail-cache": {
+    "name": "Thumbnail cache",
+    "description": "Image and video preview cache. The system will regenerate it when needed."
+  },
+  "user-logs": {
+    "name": "User logs",
+    "description": "macOS user log directory. Cleaning may affect application troubleshooting."
+  },
+  "uv-cache": {
+    "name": "uv cache",
+    "description": "uv Python package manager cache. Packages will be downloaded again when installing dependencies."
+  },
+  "vscode-cache": {
+    "name": "VS Code cache",
+    "description": "Editor cache, Webview cache, and extension cache. Some resources may need to reload after cleaning."
+  }
+}

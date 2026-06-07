@@ -14,6 +14,7 @@ import {
 } from "../components/cleanup/PageChrome";
 import { StatCard } from "../components/cleanup/StatCard";
 import { formatCount, formatSize } from "../lib/format";
+import { useI18n } from "../lib/i18n";
 import type { DeleteFilesResult, FileItem, LargeFileScanResult } from "../types/cleanup";
 
 function waitForNextFrame() {
@@ -27,6 +28,7 @@ export function LargeFilesPage({
 }: {
   onDeleteComplete: (result: DeleteFilesResult) => void;
 }) {
+  const { locale, t } = useI18n();
   const [files, setFiles] = useState<FileItem[]>([]);
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [scannedFiles, setScannedFiles] = useState(0);
@@ -90,7 +92,7 @@ export function LargeFilesPage({
       onDeleteComplete(result);
 
       if (result.failed_count > 0) {
-        setError("部分文件删除失败。");
+        setError(t("large.failed"));
       }
     } catch (deleteError) {
       setError(String(deleteError));
@@ -112,17 +114,17 @@ export function LargeFilesPage({
   return (
     <PageSurface>
       <ToolStrip>
-        <p>扫描用户目录中的大体积文件，确认后再删除。</p>
+        <p>{t("large.subtitle")}</p>
         <Button disabled={busy} onClick={scan} variant="outline">
           <Search className={scanning ? "animate-spin" : undefined} size={16} />
-          {scanning ? "扫描中" : files.length > 0 ? "重新扫描" : "开始扫描"}
+          {scanning ? t("common.scanning") : files.length > 0 ? t("actions.rescan") : t("actions.startScan")}
         </Button>
       </ToolStrip>
 
       <StatGrid>
-        <StatCard icon={HardDrive} label="可检查空间" value={formatSize(totalSize)} caption="当前结果合计" />
-        <StatCard icon={FileQuestion} label="大文件" value={formatCount(files.length)} caption={`已扫描 ${formatCount(scannedFiles)} 个文件`} />
-        <StatCard icon={Trash2} label="已选择" value={formatSize(selectedSize)} caption={`${formatCount(selectedPaths.length)} 个文件`} />
+        <StatCard icon={HardDrive} label={t("large.stat.checkable")} value={formatSize(totalSize)} caption={t("large.stat.total")} />
+        <StatCard icon={FileQuestion} label={t("large.stat.largeFiles")} value={formatCount(files.length, locale)} caption={t("format.scannedFiles", { count: formatCount(scannedFiles, locale) })} />
+        <StatCard icon={Trash2} label={t("summary.selected")} value={formatSize(selectedSize)} caption={t("format.selectedFiles", { count: formatCount(selectedPaths.length, locale) })} />
       </StatGrid>
 
       {error ? <InlineMessage kind="error">{error}</InlineMessage> : null}
@@ -132,24 +134,32 @@ export function LargeFilesPage({
           actions={
             <Button disabled={selectedPaths.length === 0 || busy} onClick={deleteSelected} variant="default">
               <Trash2 className={deleting ? "animate-spin" : undefined} size={16} />
-              {deleting ? "删除中" : "删除所选"}
+              {deleting ? t("common.deleting") : t("actions.deleteSelected")}
             </Button>
           }
         >
           <div>
-            <strong>扫描结果</strong>
-            <span>{busy ? (scanning ? "扫描中" : "删除中") : `${files.length} 个文件`}</span>
+            <strong>{t("large.resultTitle")}</strong>
+            <span>
+              {busy
+                ? scanning
+                  ? t("common.scanning")
+                  : t("common.deleting")
+                : t("format.totalFiles", { count: formatCount(files.length, locale) })}
+            </span>
           </div>
         </PanelTitle>
         {busy ? (
           <ActivityPanel
             caption={
               scanning
-                ? "正在扫描用户目录中的大体积文件"
-                : `正在删除 ${selectedPaths.length} 个已选择文件`
+                ? t("large.activity.scanning")
+                : t("large.activity.deleting", {
+                    count: formatCount(selectedPaths.length, locale),
+                  })
             }
             icon={scanning ? Search : Trash2}
-            title={scanning ? "正在扫描大文件" : "正在删除文件"}
+            title={scanning ? t("large.activity.scanTitle") : t("large.activity.deleteTitle")}
           />
         ) : (
           <FileRows

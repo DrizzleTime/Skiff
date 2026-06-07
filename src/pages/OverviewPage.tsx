@@ -12,9 +12,10 @@ import {
 import { useMemo } from "react";
 import { Button } from "../components/ui/button";
 import { PageSurface } from "../components/cleanup/PageChrome";
-import { categoryLabels, riskLabels, statusLabels } from "../lib/cleanup";
+import { categoryLabelKeys, riskLabelKeys, statusLabelKeys } from "../lib/cleanup";
 import { cn } from "../lib/utils";
 import { formatCount, formatSize, formatTime } from "../lib/format";
+import { useI18n } from "../lib/i18n";
 import type {
   CleanupCategory,
   CleanupRisk,
@@ -74,6 +75,7 @@ export function OverviewPage({
   totalFiles: number;
   totalSize: number;
 }) {
+  const { locale, t } = useI18n();
   const busy = runState === "scanning" || runState === "cleaning";
   const hasTargets = targets.length > 0;
   const hasCleanableTargets = totalSize > 0 && availableCount > 0;
@@ -84,33 +86,44 @@ export function OverviewPage({
     () => [
       {
         icon: HardDrive,
-        label: "磁盘可用",
+        label: t("overview.metric.available"),
         value: formatSize(diskStatus?.available ?? 0),
-        caption: diskStatus ? `已用 ${diskStatus.used_percent}%` : "未读取磁盘状态",
+        caption: diskStatus
+          ? t("overview.metric.diskUsed", { percent: diskStatus.used_percent })
+          : t("overview.storage.unread"),
       },
       {
         icon: Trash2,
-        label: "可释放",
+        label: t("overview.metric.cleanable"),
         value: formatSize(totalSize),
-        caption: `${formatCount(availableCount)} 项可清理`,
+        caption: t("overview.metric.cleanableItems", {
+          count: formatCount(availableCount, locale),
+        }),
       },
       {
         icon: FileText,
-        label: "文件",
-        value: formatCount(totalFiles),
-        caption: `${formatCount(targets.length)} 个扫描目标`,
+        label: t("overview.metric.files"),
+        value: formatCount(totalFiles, locale),
+        caption: t("overview.metric.targets", {
+          count: formatCount(targets.length, locale),
+        }),
       },
       {
         icon: CheckCircle2,
-        label: "已选",
+        label: t("overview.metric.selected"),
         value: formatSize(selectedSize),
-        caption: `${formatCount(selectedCount)} 项，${formatCount(selectedFiles)} 个文件`,
+        caption: t("overview.metric.selectedSummary", {
+          files: formatCount(selectedFiles, locale),
+          items: formatCount(selectedCount, locale),
+        }),
       },
       {
         icon: Clock3,
-        label: "上次清理",
-        value: lastRun ? formatSize(lastRun.released_size) : "暂无",
-        caption: lastCleanupAt ? `今天 ${formatTime(lastCleanupAt)}` : "没有清理记录",
+        label: t("overview.metric.lastCleanup"),
+        value: lastRun ? formatSize(lastRun.released_size) : t("common.none"),
+        caption: lastCleanupAt
+          ? t("common.todayAt", { time: formatTime(lastCleanupAt, locale) })
+          : t("overview.metric.noCleanup"),
       },
     ],
     [
@@ -121,6 +134,8 @@ export function OverviewPage({
       selectedCount,
       selectedFiles,
       selectedSize,
+      locale,
+      t,
       targets.length,
       totalFiles,
       totalSize,
@@ -171,21 +186,23 @@ export function OverviewPage({
 
   const heroTitle = hasTargets
     ? hasCleanableTargets
-      ? "发现可清理空间"
-      : "当前没有可清理项"
-    : "先扫描用户目录";
+      ? t("overview.hero.title.cleanable")
+      : t("overview.hero.title.empty")
+    : t("overview.hero.title.initial");
   const heroCaption = hasTargets
     ? hasCleanableTargets
-      ? `${formatCount(availableCount)} 项可清理，已默认选择低风险项目。`
-      : "最近一次扫描没有发现可释放空间，可以稍后重新扫描。"
-    : "扫描系统缓存、浏览器缓存和开发工具缓存，确认后再执行删除。";
+      ? t("overview.hero.caption.cleanable", {
+          count: formatCount(availableCount, locale),
+        })
+      : t("overview.hero.caption.empty")
+    : t("overview.hero.caption.initial");
   const primaryLabel = busy
-    ? statusLabels[runState]
+    ? t(statusLabelKeys[runState])
     : hasCleanableTargets
-      ? "查看并清理"
+      ? t("actions.viewAndClean")
       : hasTargets
-        ? "重新扫描"
-        : "开始扫描";
+        ? t("actions.rescan")
+        : t("actions.startScan");
   const PrimaryIcon = busy || !hasCleanableTargets ? RotateCw : ArrowRight;
 
   return (
@@ -194,7 +211,7 @@ export function OverviewPage({
         <div className="min-w-0 p-5 max-[720px]:p-4">
           <div className="inline-flex items-center gap-1.5 rounded-full border border-[#dddddd] bg-white px-2 py-1 text-[11px] font-[650] leading-none text-[#4b4b4b]">
             <ShieldCheck size={13} strokeWidth={2} />
-            {statusLabels[runState]}
+            {t(statusLabelKeys[runState])}
           </div>
           <h2 className="mt-4 text-[22px] font-extrabold leading-tight text-[#111111]">
             {heroTitle}
@@ -206,10 +223,10 @@ export function OverviewPage({
           <div className="mt-5 flex min-w-0 items-end gap-3 max-[720px]:flex-col max-[720px]:items-stretch">
             <div className="min-w-0 flex-1">
               <span className="block text-xs font-[650] leading-tight text-[#777777]">
-                可释放空间
+                {t("overview.hero.availableSpace")}
               </span>
               <strong className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[38px] font-extrabold leading-none text-[#080808] max-[720px]:text-[32px]">
-                {hasTargets ? formatSize(totalSize) : "待扫描"}
+                {hasTargets ? formatSize(totalSize) : t("common.notScanned")}
               </strong>
             </div>
             <div className="flex gap-2 max-[720px]:[&_button]:flex-1">
@@ -221,7 +238,7 @@ export function OverviewPage({
                   variant="outline"
                 >
                   <RotateCw className={busy ? "animate-spin" : undefined} size={16} />
-                  重新扫描
+                  {t("actions.rescan")}
                 </Button>
               ) : null}
               <Button
@@ -263,10 +280,12 @@ export function OverviewPage({
           <div className={panelTitleClass}>
             <div>
               <strong className="block text-sm font-[760] leading-tight text-[#151515]">
-                清理建议
+                {t("overview.category.title")}
               </strong>
               <span className="mt-1 block text-xs leading-tight text-[#707070]">
-                {hasTargets ? "按类别查看可释放空间与选择状态" : "等待扫描后生成建议"}
+                {hasTargets
+                  ? t("overview.category.subtitle.ready")
+                  : t("overview.category.subtitle.waiting")}
               </span>
             </div>
             <span className="whitespace-nowrap text-base font-[780] text-[#111111]">
@@ -282,12 +301,12 @@ export function OverviewPage({
               >
                 <div className="min-w-0">
                   <span className="block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-[650] leading-tight text-[#242424]">
-                    {categoryLabels[row.category]}
+                    {t(categoryLabelKeys[row.category])}
                   </span>
                   <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-xs leading-tight text-[#777777]">
                     {hasTargets
-                      ? `${formatCount(row.count)} 项 · ${formatCount(row.files)} 个文件`
-                      : "等待扫描"}
+                      ? `${formatCount(row.count, locale)} ${t("common.items")} · ${formatCount(row.files, locale)} ${t("common.files")}`
+                      : t("overview.waiting")}
                   </span>
                 </div>
                 <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-right text-[13px] font-[740] text-[#151515]">
@@ -308,10 +327,14 @@ export function OverviewPage({
                       "bg-[#fff1f2] text-[#9f1239]",
                   )}
                 >
-                  {hasTargets ? riskLabels[row.risk] : "未扫描"}
+                  {hasTargets ? t(riskLabelKeys[row.risk]) : t("common.notScanned")}
                 </span>
                 <em className="overflow-hidden text-ellipsis whitespace-nowrap text-right text-xs not-italic leading-tight text-[#707070] max-[720px]:col-span-full max-[720px]:text-left">
-                  {hasTargets ? `已选 ${formatCount(row.selected)}` : "扫描后可选择"}
+                  {hasTargets
+                    ? t("format.selectedItems", {
+                        count: formatCount(row.selected, locale),
+                      })
+                    : t("overview.category.subtitle.waiting")}
                 </em>
               </div>
             ))}
@@ -323,10 +346,10 @@ export function OverviewPage({
             <div className={panelTitleClass}>
               <div>
                 <strong className="block text-sm font-[760] leading-tight text-[#151515]">
-                  存储状态
+                  {t("overview.disk.status")}
                 </strong>
                 <span className="mt-1 block text-xs leading-tight text-[#707070]">
-                  {diskStatus?.mount_point ?? "未读取挂载点"}
+                  {diskStatus?.mount_point ?? t("overview.disk.mountMissing")}
                 </span>
               </div>
               <span className="whitespace-nowrap text-base font-[780] text-[#111111]">
@@ -343,19 +366,19 @@ export function OverviewPage({
               </div>
               <div className="mt-4 grid gap-3">
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                  <span className={rowTextClass}>总容量</span>
+                  <span className={rowTextClass}>{t("overview.disk.total")}</span>
                   <strong className="text-[13px] font-[740] text-[#151515]">
                     {formatSize(diskStatus?.total ?? 0)}
                   </strong>
                 </div>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                  <span className={rowTextClass}>已用空间</span>
+                  <span className={rowTextClass}>{t("overview.disk.used")}</span>
                   <strong className="text-[13px] font-[740] text-[#151515]">
                     {formatSize(diskStatus?.used ?? 0)}
                   </strong>
                 </div>
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                  <span className={rowTextClass}>可用空间</span>
+                  <span className={rowTextClass}>{t("overview.disk.available")}</span>
                   <strong className="text-[13px] font-[740] text-[#151515]">
                     {formatSize(diskStatus?.available ?? 0)}
                   </strong>
@@ -368,10 +391,12 @@ export function OverviewPage({
             <div className={panelTitleClass}>
               <div>
                 <strong className="block text-sm font-[760] leading-tight text-[#151515]">
-                  最近清理
+                  {t("overview.last.cleanup")}
                 </strong>
                 <span className="mt-1 block text-xs leading-tight text-[#707070]">
-                  {lastCleanupAt ? `今天 ${formatTime(lastCleanupAt)}` : "暂无记录"}
+                  {lastCleanupAt
+                    ? t("common.todayAt", { time: formatTime(lastCleanupAt, locale) })
+                    : t("history.empty.title")}
                 </span>
               </div>
               <Clock3 size={17} strokeWidth={1.9} />
@@ -379,21 +404,21 @@ export function OverviewPage({
 
             <div className="grid gap-3 p-4">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                <span className={rowTextClass}>释放空间</span>
+                <span className={rowTextClass}>{t("overview.last.released")}</span>
                 <strong className="text-[13px] font-[740] text-[#151515]">
-                  {lastRun ? formatSize(lastRun.released_size) : "暂无"}
+                  {lastRun ? formatSize(lastRun.released_size) : t("common.none")}
                 </strong>
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                <span className={rowTextClass}>处理项目</span>
+                <span className={rowTextClass}>{t("overview.last.processed")}</span>
                 <strong className="text-[13px] font-[740] text-[#151515]">
-                  {lastRun ? formatCount(lastRun.items.length) : "暂无"}
+                  {lastRun ? formatCount(lastRun.items.length, locale) : t("common.none")}
                 </strong>
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                <span className={rowTextClass}>失败项目</span>
+                <span className={rowTextClass}>{t("overview.last.failed")}</span>
                 <strong className="text-[13px] font-[740] text-[#151515]">
-                  {lastRun ? formatCount(lastRun.failed_count) : "暂无"}
+                  {lastRun ? formatCount(lastRun.failed_count, locale) : t("common.none")}
                 </strong>
               </div>
             </div>

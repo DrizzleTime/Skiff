@@ -1,6 +1,8 @@
 import { Search, Trash2 } from "lucide-react";
 import { ActivityPanel } from "./ActivityPanel";
 import { TargetTable } from "./TargetTable";
+import { formatCount } from "../../lib/format";
+import { useI18n } from "../../lib/i18n";
 import type { ActiveView, CleanupTarget, RunState } from "../../types/cleanup";
 
 export type TargetListPaneProps = {
@@ -26,6 +28,7 @@ export function TargetListPane({
   onToggleTarget,
   onSelectTarget,
 }: TargetListPaneProps) {
+  const { locale, t } = useI18n();
   const busy = runState === "scanning" || runState === "cleaning";
 
   return (
@@ -33,14 +36,17 @@ export function TargetListPane({
       <div className="flex min-h-[52px] items-center justify-between gap-3.5 border-b border-[#eeeeee] bg-white px-5 py-[10px] pb-[9px] max-[720px]:px-4">
         <div>
           <strong className="block text-sm font-[760] leading-tight text-[#171717]">
-            清理项目
+            {t("targetList.title")}
           </strong>
           <span className="mt-1 text-xs leading-tight text-[#7a7a7a]">
-            {targets.length} 项，{availableCount} 项可清理
+            {t("targetList.summary", {
+              available: formatCount(availableCount, locale),
+              total: formatCount(targets.length, locale),
+            })}
           </span>
         </div>
         <span className="whitespace-nowrap text-xs leading-tight text-[#7a7a7a]">
-          已选 {selectedCount} 项
+          {t("format.selectedItems", { count: formatCount(selectedCount, locale) })}
         </span>
       </div>
 
@@ -73,6 +79,7 @@ function RunActivity({
   selectedCount: number;
   targetCount: number;
 }) {
+  const { locale, t } = useI18n();
   const scanning = runState === "scanning";
   const Icon = scanning ? Search : Trash2;
 
@@ -80,11 +87,17 @@ function RunActivity({
     <ActivityPanel
       caption={
         scanning
-          ? `正在统计 ${targetCount > 0 ? `${targetCount} 个` : "当前"}清理目标`
-          : `正在处理 ${selectedCount} 个已确认项目`
+          ? targetCount > 0
+            ? t("targetList.activity.scanning", {
+                count: formatCount(targetCount, locale),
+              })
+            : t("targetList.activity.scanningCurrent")
+          : t("targetList.activity.cleaning", {
+              count: formatCount(selectedCount, locale),
+            })
       }
       icon={Icon}
-      title={scanning ? "正在扫描缓存目录" : "正在清理所选项目"}
+      title={scanning ? t("targetList.activity.scanningTitle") : t("targetList.activity.cleaningTitle")}
     />
   );
 }

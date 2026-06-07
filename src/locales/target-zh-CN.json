@@ -1,0 +1,130 @@
+{
+  "__flatpak-app-cache": {
+    "name": "{name} 缓存",
+    "description": "清理 Flatpak 应用缓存，不删除配置、登录态和本地数据。"
+  },
+  "__flatpak-app-data": {
+    "name": "{name} 应用数据",
+    "description": "重置 Flatpak 应用数据和配置。会删除登录状态、本地数据库和应用配置。"
+  },
+  "brave-cache": {
+    "name": "Brave 缓存",
+    "description": "Brave 页面资源缓存，不包含书签、密码和历史记录。"
+  },
+  "bun-cache-clean": {
+    "name": "Bun 缓存",
+    "description": "调用 Bun 清理包管理缓存。删除后安装依赖时会重新下载包。"
+  },
+  "cargo-cache": {
+    "name": "Cargo 缓存",
+    "description": "Cargo 包和 Git 依赖缓存。删除后构建 Rust 项目时会重新下载依赖。"
+  },
+  "ccache-cache": {
+    "name": "ccache 缓存",
+    "description": "C/C++ 编译缓存。删除后编译速度可能暂时变慢。"
+  },
+  "chrome-cache": {
+    "name": "Chrome 缓存",
+    "description": "Chrome 页面资源缓存，不包含书签、密码和历史记录。"
+  },
+  "chromium-cache": {
+    "name": "Chromium 缓存",
+    "description": "Chromium 页面资源缓存，不包含书签、密码和历史记录。"
+  },
+  "dnf-cache-clean": {
+    "name": "DNF/YUM 缓存",
+    "description": "调用系统包管理器清理软件包、元数据和数据库缓存。"
+  },
+  "edge-cache": {
+    "name": "Edge 缓存",
+    "description": "Microsoft Edge 页面资源缓存，不包含书签、密码和历史记录。"
+  },
+  "firefox-cache": {
+    "name": "Firefox 缓存",
+    "description": "Firefox 页面资源缓存，不包含书签、密码和历史记录。"
+  },
+  "flatpak-cache": {
+    "name": "Flatpak 下载缓存",
+    "description": "清理 Flatpak 下载、临时仓库和系统缓存目录。"
+  },
+  "flatpak-unused-runtimes": {
+    "name": "Flatpak 未使用运行时",
+    "description": "调用 flatpak 清理未被应用依赖的运行时和扩展。大小无法提前可靠预估。"
+  },
+  "fontconfig-cache": {
+    "name": "字体索引缓存",
+    "description": "字体查找缓存。删除后系统会在下次加载字体时重建。"
+  },
+  "go-cache": {
+    "name": "Go 构建缓存",
+    "description": "Go 构建和模块下载缓存。删除后构建时会重新生成或下载依赖。"
+  },
+  "gtk-cache": {
+    "name": "GTK 缓存",
+    "description": "GTK 组件缓存。删除后桌面应用会按需重建。"
+  },
+  "homebrew-cache-clean": {
+    "name": "Homebrew 缓存",
+    "description": "调用 Homebrew 清理下载缓存和旧版本缓存。"
+  },
+  "inet-cache": {
+    "name": "系统网络缓存",
+    "description": "Windows 用户网络缓存。删除后系统会按需重建。"
+  },
+  "media-framework-cache": {
+    "name": "媒体框架缓存",
+    "description": "GStreamer 和 Glycin 媒体处理缓存。删除后会按需重建。"
+  },
+  "mozilla-cache": {
+    "name": "Firefox 缓存",
+    "description": "Firefox 页面资源缓存，不包含书签、密码和历史记录。"
+  },
+  "npm-cache-clean": {
+    "name": "npm 缓存",
+    "description": "调用 npm 清理下载缓存。删除后安装依赖时会重新下载包。"
+  },
+  "pip-cache-clean": {
+    "name": "pip 缓存",
+    "description": "调用 pip 清理 wheel 缓存。删除后安装依赖时会重新下载包。"
+  },
+  "playwright-cache": {
+    "name": "Playwright 缓存",
+    "description": "Playwright 下载的浏览器缓存。删除后运行测试时会重新下载浏览器。"
+  },
+  "pnpm-cache": {
+    "name": "pnpm 缓存",
+    "description": "pnpm 下载缓存。删除后安装依赖时会重新下载包。"
+  },
+  "safari-cache": {
+    "name": "Safari 缓存",
+    "description": "Safari 页面资源缓存，不包含书签和密码。"
+  },
+  "shader-cache": {
+    "name": "图形着色器缓存",
+    "description": "Mesa、Radeon 和 Qt/GTK 渲染缓存。删除后会按需重建。"
+  },
+  "system-cache": {
+    "name": "系统用户缓存",
+    "description": "macOS 用户缓存目录。删除后应用会在需要时重新生成缓存。"
+  },
+  "temp-files": {
+    "name": "临时文件",
+    "description": "Windows 用户临时目录。正在使用的文件会清理失败并保留。"
+  },
+  "thumbnail-cache": {
+    "name": "缩略图缓存",
+    "description": "图片和视频预览缓存。删除后系统会在需要时重新生成。"
+  },
+  "user-logs": {
+    "name": "用户日志",
+    "description": "macOS 用户日志目录。删除后可能影响应用故障排查。"
+  },
+  "uv-cache": {
+    "name": "uv 缓存",
+    "description": "uv Python 包管理器缓存。删除后安装依赖时会重新下载包。"
+  },
+  "vscode-cache": {
+    "name": "VS Code 缓存",
+    "description": "编辑器缓存、Webview 缓存和扩展缓存。删除后可能需要重新加载部分资源。"
+  }
+}

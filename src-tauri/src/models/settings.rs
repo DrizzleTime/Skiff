@@ -10,6 +10,18 @@ pub struct AppSettings {
     pub large_file_min_size: u64,
     pub duplicate_min_size: u64,
     pub close_to_tray: bool,
+    pub language: LanguagePreference,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+pub enum LanguagePreference {
+    #[default]
+    #[serde(rename = "system")]
+    System,
+    #[serde(rename = "zh-CN")]
+    ZhCn,
+    #[serde(rename = "en-US")]
+    EnUs,
 }
 
 impl Default for AppSettings {
@@ -18,6 +30,7 @@ impl Default for AppSettings {
             large_file_min_size: DEFAULT_LARGE_FILE_MIN_SIZE,
             duplicate_min_size: DEFAULT_DUPLICATE_MIN_SIZE,
             close_to_tray: DEFAULT_CLOSE_TO_TRAY,
+            language: LanguagePreference::System,
         }
     }
 }

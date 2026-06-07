@@ -23,6 +23,7 @@ use crate::{
         system::{home_dir, Platform},
     },
 };
+use tauri::AppHandle;
 
 #[tauri::command]
 pub async fn scan_cleanup_targets() -> Result<CleanupScanResult, String> {
@@ -101,9 +102,14 @@ pub fn get_settings() -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
-pub fn save_settings(settings: AppSettings) -> Result<AppSettings, String> {
+pub fn save_settings(
+    app: AppHandle,
+    settings: AppSettings,
+) -> Result<AppSettings, String> {
     let home = home_dir()?;
     write_settings(&home, &settings)?;
+    crate::tray::refresh_tray_menu(&app, settings.language)
+        .map_err(|err| format!("刷新托盘菜单失败：{err}"))?;
     Ok(settings)
 }
 

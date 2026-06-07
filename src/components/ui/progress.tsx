@@ -1,4 +1,5 @@
 import { cn } from "../../lib/utils";
+import { useI18n } from "../../lib/i18n";
 
 type ProgressProps = {
   value: number;
@@ -6,11 +7,12 @@ type ProgressProps = {
 };
 
 export function Progress({ value, className }: ProgressProps) {
+  const { t } = useI18n();
   const safeValue = Math.max(0, Math.min(100, value));
 
   return (
     <div
-      aria-label="执行进度"
+      aria-label={t("progress.aria")}
       className={cn("h-1.5 overflow-hidden rounded-full bg-[#e4e4e7]", className)}
       role="progressbar"
       aria-valuemax={100}

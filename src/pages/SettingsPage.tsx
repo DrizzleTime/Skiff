@@ -15,18 +15,30 @@ import {
 } from "../components/ui/field";
 import { Input } from "../components/ui/input";
 import { Switch } from "../components/ui/switch";
+import { useI18n } from "../lib/i18n";
+import { cn } from "../lib/utils";
 import type { AppSettings } from "../types/cleanup";
+import type { LanguagePreference } from "../types/cleanup";
 
 const MB = 1024 * 1024;
 const settingsRowClass =
-  "grid min-h-[90px] grid-cols-[minmax(0,1fr)_170px] items-center gap-5 border-b border-[#eeeeee] px-5 py-[18px] last:border-b-0 max-[720px]:grid-cols-1";
+  "grid min-h-[90px] grid-cols-[minmax(0,1fr)_224px] items-center gap-5 border-b border-[#eeeeee] px-5 py-[18px] last:border-b-0 max-[720px]:grid-cols-1";
+const languageRowClass =
+  "grid min-h-[90px] grid-cols-[minmax(0,1fr)_360px] items-center gap-5 border-b border-[#eeeeee] px-5 py-[18px] last:border-b-0 max-[720px]:grid-cols-1";
 const fieldClass = "grid grid-cols-[24px_minmax(0,1fr)] gap-x-2.5 gap-y-1.5";
 
 export function SettingsPage() {
+  const { languagePreference, setLanguagePreference, t } = useI18n();
   const [largeFileMinSize, setLargeFileMinSize] = useState(500);
   const [duplicateMinSize, setDuplicateMinSize] = useState(10);
   const [closeToTray, setCloseToTray] = useState(true);
+  const [localLanguage, setLocalLanguage] =
+    useState<LanguagePreference>(languagePreference);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLocalLanguage(languagePreference);
+  }, [languagePreference]);
 
   useEffect(() => {
     void loadSettings();
@@ -38,6 +50,8 @@ export function SettingsPage() {
       setLargeFileMinSize(Math.round(settings.large_file_min_size / MB));
       setDuplicateMinSize(Math.round(settings.duplicate_min_size / MB));
       setCloseToTray(settings.close_to_tray);
+      setLocalLanguage(settings.language ?? "system");
+      setLanguagePreference(settings.language ?? "system");
     } catch (error) {
       setMessage(String(error));
     }
@@ -51,9 +65,11 @@ export function SettingsPage() {
           large_file_min_size: largeFileMinSize * MB,
           duplicate_min_size: duplicateMinSize * MB,
           close_to_tray: closeToTray,
+          language: localLanguage,
         },
       });
-      setMessage("设置已保存。");
+      setLanguagePreference(localLanguage);
+      setMessage(t("settings.saved"));
     } catch (error) {
       setMessage(String(error));
     }
@@ -62,10 +78,10 @@ export function SettingsPage() {
   return (
     <PageSurface>
       <ToolStrip>
-        <p>调整大文件和重复文件扫描阈值。</p>
+        <p>{t("settings.subtitle")}</p>
         <Button onClick={saveSettings} variant="default">
           <Save size={16} />
-          保存设置
+          {t("actions.saveSettings")}
         </Button>
       </ToolStrip>
 
@@ -76,9 +92,9 @@ export function SettingsPage() {
           <Field className={fieldClass} orientation="horizontal">
             <Settings className="row-span-2 self-start" size={18} />
             <FieldContent>
-              <FieldTitle className="text-sm">大文件阈值</FieldTitle>
+              <FieldTitle className="text-sm">{t("settings.large.title")}</FieldTitle>
               <FieldDescription className="text-xs text-[#6f6f6f]">
-                扫描大文件时只返回不小于该大小的文件。
+                {t("settings.large.description")}
               </FieldDescription>
             </FieldContent>
           </Field>
@@ -98,9 +114,9 @@ export function SettingsPage() {
           <Field className={fieldClass} orientation="horizontal">
             <Settings className="row-span-2 self-start" size={18} />
             <FieldContent>
-              <FieldTitle className="text-sm">重复文件阈值</FieldTitle>
+              <FieldTitle className="text-sm">{t("settings.duplicate.title")}</FieldTitle>
               <FieldDescription className="text-xs text-[#6f6f6f]">
-                重复文件扫描会忽略小于该大小的文件。
+                {t("settings.duplicate.description")}
               </FieldDescription>
             </FieldContent>
           </Field>
@@ -120,21 +136,63 @@ export function SettingsPage() {
           <Field className={fieldClass} orientation="horizontal">
             <Settings className="row-span-2 self-start" size={18} />
             <FieldContent>
-              <FieldTitle className="text-sm">关闭窗口时最小化到托盘</FieldTitle>
+              <FieldTitle className="text-sm">{t("settings.closeToTray.title")}</FieldTitle>
               <FieldDescription className="text-xs text-[#6f6f6f]">
-                开启后点击关闭按钮会隐藏窗口，关闭后点击关闭按钮会退出应用。
+                {t("settings.closeToTray.description")}
               </FieldDescription>
             </FieldContent>
           </Field>
           <div className="flex items-center justify-end max-[720px]:justify-start">
             <Switch
-              aria-label="关闭窗口时最小化到托盘"
+              aria-label={t("settings.closeToTray.title")}
               checked={closeToTray}
               onCheckedChange={setCloseToTray}
             />
+          </div>
+        </div>
+
+        <div className={languageRowClass}>
+          <Field className={fieldClass} orientation="horizontal">
+            <Settings className="row-span-2 self-start" size={18} />
+            <FieldContent>
+              <FieldTitle className="text-sm">{t("settings.language.title")}</FieldTitle>
+              <FieldDescription className="text-xs text-[#6f6f6f]">
+                {t("settings.language.description")}
+              </FieldDescription>
+            </FieldContent>
+          </Field>
+          <div className="grid w-full grid-cols-3 gap-1 rounded-lg border border-[#d8d8d8] bg-[#f6f6f6] p-1">
+            {languageOptions.map((option) => (
+              <button
+                className={cn(
+                  "min-h-8 whitespace-nowrap rounded-md px-3 text-xs font-semibold text-[#555555]",
+                  localLanguage === option.value && "bg-white text-[#111111] shadow-sm",
+                )}
+                key={option.value}
+                onClick={() => {
+                  setLocalLanguage(option.value);
+                  setLanguagePreference(option.value);
+                }}
+                type="button"
+              >
+                {t(option.labelKey)}
+              </button>
+            ))}
           </div>
         </div>
       </div>
     </PageSurface>
   );
 }
+
+const languageOptions: Array<{
+  value: LanguagePreference;
+  labelKey:
+    | "settings.language.system"
+    | "settings.language.zh"
+    | "settings.language.english";
+}> = [
+  { value: "system", labelKey: "settings.language.system" },
+  { value: "zh-CN", labelKey: "settings.language.zh" },
+  { value: "en-US", labelKey: "settings.language.english" },
+];

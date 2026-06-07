@@ -20,6 +20,7 @@ import {
   InputGroupInput,
 } from "../components/ui/input-group";
 import { formatCount, formatSize } from "../lib/format";
+import { useI18n } from "../lib/i18n";
 import { cn } from "../lib/utils";
 import type {
   AgentCleanupResult,
@@ -38,12 +39,12 @@ function waitForNextFrame() {
   });
 }
 
-function formatDateTime(value: number) {
+function formatDateTime(value: number, locale: "zh-CN" | "en-US", emptyLabel: string) {
   if (!value) {
-    return "未知时间";
+    return emptyLabel;
   }
 
-  return new Date(value).toLocaleString("zh-CN", {
+  return new Date(value).toLocaleString(locale, {
     month: "2-digit",
     day: "2-digit",
     hour: "2-digit",
@@ -69,6 +70,7 @@ export function AgentCleanupPage({
   onCleanupComplete: (result: AgentCleanupResult) => void;
   onScanComplete: (result: AgentThreadScanResult) => void;
 }) {
+  const { locale, t } = useI18n();
   const [threads, setThreads] = useState<AgentThread[]>(
     () => initialScanResult?.threads ?? [],
   );
@@ -173,7 +175,7 @@ export function AgentCleanupPage({
       onCleanupComplete(result);
 
       if (result.failed_count > 0) {
-        setError("部分 Agent 会话清理失败。");
+        setError(t("agent.failed"));
       }
     } catch (cleanError) {
       setError(String(cleanError));
@@ -215,17 +217,17 @@ export function AgentCleanupPage({
   return (
     <PageSurface className="flex h-full min-h-0 flex-col max-[720px]:h-auto">
       <ToolStrip className="mb-3 min-h-9">
-        <p>扫描本地 Agent 会话，按来源筛选并精确删除会话记录、日志和索引。</p>
+        <p>{t("agent.subtitle")}</p>
         <Button disabled={busy} onClick={() => void scanThreads()} variant="outline">
           <Search className={scanning ? "animate-spin" : undefined} size={16} />
-          {threads.length > 0 ? "重新扫描" : "扫描 Agent"}
+          {threads.length > 0 ? t("actions.rescan") : t("actions.scanAgent")}
         </Button>
       </ToolStrip>
 
       <StatGrid className="mb-3">
-        <StatCard icon={Bot} label="会话" value={formatCount(threads.length)} caption={`${formatCount(totalLogs)} 条日志`} />
-        <StatCard icon={Database} label="Agent" value={formatCount(availableAgents)} caption="当前可扫描" />
-        <StatCard icon={Trash2} label="已选择" value={formatSize(selectedSize)} caption={`${formatCount(selectedIds.length)} 个会话`} />
+        <StatCard icon={Bot} label={t("agent.table.session")} value={formatCount(threads.length, locale)} caption={`${formatCount(totalLogs, locale)} ${t("agent.table.logs")}`} />
+        <StatCard icon={Database} label="Agent" value={formatCount(availableAgents, locale)} caption={t("agent.currentScannable")} />
+        <StatCard icon={Trash2} label={t("summary.selected")} value={formatSize(selectedSize)} caption={`${formatCount(selectedIds.length, locale)} ${t("agent.table.session")}`} />
       </StatGrid>
 
       <div className="mb-2.5 flex flex-wrap items-center gap-2 max-[720px]:items-start">
@@ -241,7 +243,7 @@ export function AgentCleanupPage({
           onClick={() => setAgentFilter("all")}
           type="button"
         >
-          全部
+          {t("agent.filter.all")}
         </button>
         {agents.map((agent) => (
           <button
@@ -271,7 +273,7 @@ export function AgentCleanupPage({
             className="h-10 px-0 text-[13px]"
             disabled={busy}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索来源、标题、目录或会话 ID"
+            placeholder={t("agent.searchPlaceholder")}
             type="search"
             value={query}
           />
@@ -291,7 +293,7 @@ export function AgentCleanupPage({
                   onClick={() => setConfirming(false)}
                   variant="outline"
                 >
-                  取消
+                  {t("actions.cancel")}
                 </Button>
                 <Button
                   className="h-8 gap-1.5 px-3 text-[13px]"
@@ -300,7 +302,7 @@ export function AgentCleanupPage({
                   variant="destructive"
                 >
                   <Trash2 className={cleaning ? "animate-spin" : undefined} size={16} />
-                  {cleaning ? "清理中" : "确认清理"}
+                  {cleaning ? t("common.cleaning") : t("actions.confirmClean")}
                 </Button>
               </div>
             ) : (
@@ -311,15 +313,19 @@ export function AgentCleanupPage({
                 variant="default"
               >
                 <Trash2 size={16} />
-                清理所选
+                {t("actions.cleanSelected")}
               </Button>
             )
           }
         >
           <div>
-            <strong>Agent 会话</strong>
+            <strong>{t("agent.title")}</strong>
             <span>
-              {busy ? (scanning ? "扫描中" : "清理中") : `${filteredThreads.length} 项 · ${formatSize(filteredSize)}`}
+              {busy
+                ? scanning
+                  ? t("common.scanning")
+                  : t("common.cleaning")
+                : `${formatCount(filteredThreads.length, locale)} ${t("common.items")} · ${formatSize(filteredSize)}`}
             </span>
           </div>
         </PanelTitle>
@@ -327,7 +333,7 @@ export function AgentCleanupPage({
         {confirming ? (
           <div className="flex min-h-[38px] items-center gap-2 border-b border-[#f1d4b8] bg-[#fff9f2] px-5 text-[13px] text-[#8a4b12]">
             <ShieldAlert size={16} />
-            <span>将删除所选 Agent 会话正文、线程记录、日志、目标记录和索引行。</span>
+            <span>{t("agent.confirm")}</span>
           </div>
         ) : null}
 
@@ -335,11 +341,13 @@ export function AgentCleanupPage({
           <ActivityPanel
             caption={
               scanning
-                ? "正在读取本地 Agent 会话索引"
-                : `正在清理 ${selectedIds.length} 个已确认会话`
+                ? t("agent.activity.scanning")
+                : t("agent.activity.cleaning", {
+                    count: formatCount(selectedIds.length, locale),
+                  })
             }
             icon={scanning ? Search : Trash2}
-            title={scanning ? "正在扫描 Agent 会话" : "正在清理 Agent 会话"}
+            title={scanning ? t("agent.activity.scanningTitle") : t("agent.activity.cleaningTitle")}
           />
         ) : (
           <AgentThreadRows
@@ -368,6 +376,7 @@ function AgentThreadRows({
   selectedIdSet: Set<string>;
   threads: AgentThread[];
 }) {
+  const { locale, t } = useI18n();
   const selectAllRef = useRef<HTMLInputElement>(null);
   const selectedVisibleCount = threads.filter((thread) =>
     selectedIdSet.has(thread.id),
@@ -386,15 +395,15 @@ function AgentThreadRows({
   if (threads.length === 0) {
     return (
       <CleanupEmptyState
-        description="扫描后会显示本机 Agent 保存的会话记录。"
+        description={t("agent.empty.description")}
         icon={Bot}
-        title="暂无 Agent 会话"
+        title={t("agent.empty.title")}
       />
     );
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" role="table" aria-label="Agent 会话">
+    <div className="flex min-h-0 flex-1 flex-col" role="table" aria-label={t("agent.title")}>
       <div
         className={cn(
           pageTableGridClass,
@@ -403,14 +412,14 @@ function AgentThreadRows({
         )}
         role="row"
       >
-        <span role="columnheader">来源</span>
-        <span role="columnheader">会话</span>
-        <span role="columnheader">更新时间</span>
-        <span className="text-right" role="columnheader">日志</span>
-        <span className="text-right" role="columnheader">大小</span>
+        <span role="columnheader">{t("agent.table.agent")}</span>
+        <span role="columnheader">{t("agent.table.session")}</span>
+        <span role="columnheader">{t("agent.table.updated")}</span>
+        <span className="text-right" role="columnheader">{t("agent.table.logs")}</span>
+        <span className="text-right" role="columnheader">{t("agent.table.size")}</span>
         <span className="flex justify-end" role="columnheader">
           <Checkbox
-            aria-label="选择当前列表全部 Agent 会话"
+            aria-label={t("format.selectedItems", { count: t("common.all") })}
             checked={allVisibleSelected}
             onChange={(event) => onToggleAll(event.target.checked)}
             ref={selectAllRef}
@@ -445,22 +454,22 @@ function AgentThreadRows({
                   {thread.cwd}
                 </code>
                 <em className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] not-italic text-[#777777]">
-                  {thread.archived ? "已归档" : `${sourceLabel} · ${thread.source}${thread.model ? ` · ${thread.model}` : ""}`}
+                  {thread.archived ? t("appData.source.archived") : `${sourceLabel} · ${thread.source}${thread.model ? ` · ${thread.model}` : ""}`}
                 </em>
               </span>
               <span className="inline-flex items-center justify-end gap-1.5 whitespace-nowrap text-xs text-[#555555] max-[720px]:hidden" role="cell">
                 <Clock3 size={14} />
-                {formatDateTime(thread.updated_at_ms)}
+                {formatDateTime(thread.updated_at_ms, locale, t("common.unknownTime"))}
               </span>
               <span className="whitespace-nowrap text-right text-xs font-bold text-[#111111] max-[720px]:hidden" role="cell">
-                {formatCount(thread.log_count)}
+                {formatCount(thread.log_count, locale)}
               </span>
               <span className="whitespace-nowrap text-right text-xs font-bold text-[#111111] max-[720px]:hidden" role="cell">
                 {formatSize(thread.size)}
               </span>
               <span className="flex justify-end" role="cell">
                 <Checkbox
-                  aria-label={`选择${thread.title}`}
+                  aria-label={t("file.select", { name: thread.title })}
                   checked={checked}
                   onChange={() => onToggleThread(thread.id)}
                 />

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { CleanupEmptyState } from "../components/cleanup/CleanupEmptyState";
 import { formatCount, formatSize } from "../lib/format";
+import { useI18n } from "../lib/i18n";
 import { cn } from "../lib/utils";
 import type { CleanupRunResult } from "../types/cleanup";
 
@@ -16,31 +17,32 @@ const tableGridClass =
   "grid grid-cols-[minmax(150px,1fr)_minmax(180px,1.35fr)_70px_76px_118px] items-center gap-2.5 max-[720px]:min-w-[660px]";
 
 export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
+  const { locale, t } = useI18n();
   const successCount = lastRun
     ? lastRun.items.filter((item) => item.success).length
     : 0;
   const hasFailures = Boolean(lastRun?.failed_count);
   const releasedLabel = lastRun ? formatSize(lastRun.released_size) : "0 B";
-  const processedLabel = lastRun ? formatCount(lastRun.deleted_files) : "0";
+  const processedLabel = lastRun ? formatCount(lastRun.deleted_files, locale) : "0";
 
   return (
     <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-[#e5e5e5] bg-white">
       <div className="flex min-h-[52px] items-center justify-between gap-3.5 border-b border-[#eeeeee] bg-white px-5 py-[10px] pb-[9px] max-[720px]:px-4">
         <div>
           <strong className="block text-sm font-[760] leading-tight text-[#171717]">
-            清理记录
+            {t("history.header.title")}
           </strong>
           <span className="mt-1 text-xs leading-tight text-[#7a7a7a]">
-            最近一次清理或删除操作的结果
+            {t("history.header.subtitle")}
           </span>
         </div>
       </div>
 
       {!lastRun ? (
         <CleanupEmptyState
-          description="完成清理后会显示结果。"
+          description={t("history.empty.description")}
           icon={Clock3}
-          title="暂无记录"
+          title={t("history.empty.title")}
         />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-auto">
@@ -54,10 +56,13 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
               {hasFailures ? <AlertTriangle size={22} /> : <CheckCircle2 size={22} />}
               <div>
                 <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-[780] leading-tight text-[#171717]">
-                  {hasFailures ? "部分项目处理失败" : "清理完成"}
+                  {hasFailures ? t("history.failedStatus") : t("history.successStatus")}
                 </strong>
                 <span className="mt-1 block text-xs leading-tight text-[#686868]">
-                  成功 {formatCount(successCount)} 项，失败 {formatCount(lastRun.failed_count)} 项
+                  {t("history.statusLine", {
+                    failed: formatCount(lastRun.failed_count, locale),
+                    success: formatCount(successCount, locale),
+                  })}
                 </span>
               </div>
             </div>
@@ -66,7 +71,7 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
               <div className="grid min-h-12 min-w-[110px] grid-cols-[auto_auto] items-center gap-x-1.5 px-3 py-2 max-[720px]:min-w-0 max-[720px]:flex-1">
                 <HardDrive className="text-[#555555]" size={16} />
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-semibold leading-tight text-[#727272]">
-                  已释放
+                  {t("history.metrics.released")}
                 </span>
                 <strong className="col-span-full mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-[780] leading-none text-[#101010]">
                   {releasedLabel}
@@ -75,7 +80,7 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
               <div className="grid min-h-12 min-w-[110px] grid-cols-[auto_auto] items-center gap-x-1.5 px-3 py-2 max-[720px]:min-w-0 max-[720px]:flex-1">
                 <ListChecks className="text-[#555555]" size={16} />
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-semibold leading-tight text-[#727272]">
-                  处理数量
+                  {t("history.metrics.processed")}
                 </span>
                 <strong className="col-span-full mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-[780] leading-none text-[#101010]">
                   {processedLabel}
@@ -84,10 +89,10 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
               <div className="grid min-h-12 min-w-[110px] grid-cols-[auto_auto] items-center gap-x-1.5 px-3 py-2 max-[720px]:min-w-0 max-[720px]:flex-1">
                 <ShieldAlert className="text-[#555555]" size={16} />
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-semibold leading-tight text-[#727272]">
-                  失败
+                  {t("history.metrics.failed")}
                 </span>
                 <strong className="col-span-full mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-[780] leading-none text-[#101010]">
-                  {formatCount(lastRun.failed_count)}
+                  {formatCount(lastRun.failed_count, locale)}
                 </strong>
               </div>
             </div>
@@ -95,11 +100,11 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
 
           <div className="flex min-h-0 flex-1 flex-col max-[720px]:overflow-auto">
             <div className={cn(tableGridClass, "min-h-[34px] border-b border-[#e5e5e5] bg-[#f7f7f7] px-5 text-[11px] font-[680] text-[#6d6d6d] [&_span:nth-child(3)]:text-right [&_span:nth-child(4)]:text-right")}>
-              <span>项目</span>
-              <span>路径 / 来源</span>
-              <span>处理</span>
-              <span>释放</span>
-              <span>状态</span>
+              <span>{t("history.table.item")}</span>
+              <span>{t("history.table.path")}</span>
+              <span>{t("history.table.processed")}</span>
+              <span>{t("history.table.released")}</span>
+              <span>{t("history.table.status")}</span>
             </div>
             {lastRun.items.map((item) => (
               <div
@@ -127,7 +132,9 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
                   {item.path}
                 </code>
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-right text-[13px] leading-tight text-[#171717]">
-                  {formatCount(item.deleted_files)} 项
+                  {t("history.row.processed", {
+                    count: formatCount(item.deleted_files, locale),
+                  })}
                 </span>
                 <strong
                   className={cn(
@@ -146,7 +153,7 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
                         : "border-[#efcccc] bg-[#fff5f5] text-[#991b1b]",
                     )}
                   >
-                    {item.success ? "成功" : "失败"}
+                    {item.success ? t("common.success") : t("common.failure")}
                   </span>
                   {item.error ? (
                     <p className="max-w-full text-[11px] leading-snug text-[#991b1b] [overflow-wrap:anywhere]">

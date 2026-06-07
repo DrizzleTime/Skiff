@@ -27,6 +27,7 @@ import {
 } from "../components/cleanup/PageChrome";
 import { StatCard } from "../components/cleanup/StatCard";
 import { formatCount, formatSize } from "../lib/format";
+import { useI18n, type I18nKey } from "../lib/i18n";
 import { cn } from "../lib/utils";
 import type {
   InstalledPackage,
@@ -45,29 +46,26 @@ const managerLabels: Record<string, string> = {
   "homebrew-cask": "Cask",
   "windows-registry": "Windows",
 };
-const platformCopy = {
-  linux: {
-    caption: "APT / RPM / Flatpak",
-    description: "扫描 APT、RPM、Flatpak 已安装应用，确认后调用系统包管理器卸载。",
-    privilege: "个系统软件包需要管理员授权。",
-    scanning: "正在读取包管理器应用列表",
-  },
-  macos: {
-    caption: "Apps / Homebrew",
-    description: "扫描 .app、Homebrew formula 和 cask，确认后移入废纸篓或调用 brew uninstall。",
-    privilege: "个系统应用可能需要管理员授权。",
-    scanning: "正在读取 macOS 应用和 Homebrew 列表",
-  },
-  windows: {
-    caption: "Registry uninstall",
-    description: "扫描 Windows Uninstall 注册表项，确认后调用应用登记的官方卸载命令。",
-    privilege: "个系统级应用可能需要管理员授权。",
-    scanning: "正在读取 Windows 应用注册表",
-  },
-} satisfies Record<
-  "linux" | "macos" | "windows",
-  { caption: string; description: string; privilege: string; scanning: string }
->;
+const platformCaptions = {
+  linux: "APT / RPM / Flatpak",
+  macos: "Apps / Homebrew",
+  windows: "Registry uninstall",
+} satisfies Record<"linux" | "macos" | "windows", string>;
+const platformDescriptionKeys = {
+  linux: "apps.platform.linux.description",
+  macos: "apps.platform.macos.description",
+  windows: "apps.platform.windows.description",
+} satisfies Record<"linux" | "macos" | "windows", I18nKey>;
+const platformPrivilegeKeys = {
+  linux: "apps.platform.linux.privilege",
+  macos: "apps.platform.macos.privilege",
+  windows: "apps.platform.windows.privilege",
+} satisfies Record<"linux" | "macos" | "windows", I18nKey>;
+const platformScanningKeys = {
+  linux: "apps.platform.linux.scanning",
+  macos: "apps.platform.macos.scanning",
+  windows: "apps.platform.windows.scanning",
+} satisfies Record<"linux" | "macos" | "windows", I18nKey>;
 const searchGroupClass =
   "h-10 gap-2.5 rounded-lg border-[#dddddd] bg-white px-3 shadow-none";
 const packageGridClass =
@@ -92,6 +90,7 @@ export function ApplicationCleanupPage({
   onScanComplete: (result: PackageScanResult, includeSystem: boolean) => void;
   onUninstallComplete: (result: PackageUninstallResult) => void;
 }) {
+  const { locale, t } = useI18n();
   const [packages, setPackages] = useState<InstalledPackage[]>(
     () => initialScanResult?.packages ?? [],
   );
@@ -141,7 +140,7 @@ export function ApplicationCleanupPage({
           }),
         );
       } catch {
-        // 图标不是核心数据，加载失败时保留字母 fallback。
+        // Icons are optional data; keep the letter fallback when loading fails.
       }
     }
 
@@ -198,7 +197,9 @@ export function ApplicationCleanupPage({
   );
   const { privilegeCount, selectedSize } = selectedSummary;
   const busy = scanning || uninstalling;
-  const copy = platformCopy[platform];
+  const platformDescription = t(platformDescriptionKeys[platform]);
+  const platformPrivilege = t(platformPrivilegeKeys[platform]);
+  const platformScanning = t(platformScanningKeys[platform]);
 
   async function scanPackages(nextIncludeSystem = includeSystem) {
     if (busy) {
@@ -249,7 +250,7 @@ export function ApplicationCleanupPage({
       onUninstallComplete(result);
 
       if (result.failed_count > 0) {
-        setError("部分软件包卸载失败。");
+        setError(t("apps.failed"));
       }
     } catch (uninstallError) {
       setError(String(uninstallError));
@@ -283,21 +284,21 @@ export function ApplicationCleanupPage({
   return (
     <PageSurface className="flex h-full min-h-0 flex-col max-[720px]:h-auto">
       <ToolStrip className="mb-3 min-h-9">
-        <p>{copy.description}</p>
+        <p>{platformDescription}</p>
         <Button
           disabled={busy}
           onClick={() => void scanPackages()}
           variant="outline"
         >
           <Search className={scanning ? "animate-spin" : undefined} size={16} />
-          {scanning ? "扫描中" : packages.length > 0 ? "重新扫描" : "扫描应用"}
+          {scanning ? t("common.scanning") : packages.length > 0 ? t("actions.rescan") : t("actions.scanApps")}
         </Button>
       </ToolStrip>
 
       <StatGrid className="mb-3">
-        <StatCard icon={Package} label="已安装" value={formatCount(packages.length)} caption="当前扫描结果" />
-        <StatCard icon={Box} label="来源" value={formatCount(availableManagers)} caption={copy.caption} />
-        <StatCard icon={Trash2} label="已选择" value={formatSize(selectedSize)} caption={`${formatCount(selectedIds.length)} 个软件包`} />
+        <StatCard icon={Package} label={t("apps.stat.installed")} value={formatCount(packages.length, locale)} caption={t("apps.stat.currentResults")} />
+        <StatCard icon={Box} label={t("apps.table.source")} value={formatCount(availableManagers, locale)} caption={platformCaptions[platform]} />
+        <StatCard icon={Trash2} label={t("summary.selected")} value={formatSize(selectedSize)} caption={`${formatCount(selectedIds.length, locale)} ${t("apps.title")}`} />
       </StatGrid>
 
       <div className="mb-2.5 flex flex-wrap items-center gap-2 max-[720px]:items-start">
@@ -313,7 +314,7 @@ export function ApplicationCleanupPage({
           onClick={() => setManagerFilter("all")}
           type="button"
         >
-          全部
+          {t("apps.filter.all")}
         </button>
         {managers.map((manager) => (
           <button
@@ -339,7 +340,7 @@ export function ApplicationCleanupPage({
             onCheckedChange={toggleSystemPackages}
             size="sm"
           />
-          <span>显示系统组件</span>
+          <span>{t("apps.includeSystem")}</span>
         </label>
       </div>
 
@@ -352,7 +353,7 @@ export function ApplicationCleanupPage({
             className="h-10 px-0 text-[13px]"
             disabled={busy}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="搜索包名、应用名或描述"
+            placeholder={t("apps.searchPlaceholder")}
             type="search"
             value={query}
           />
@@ -371,11 +372,11 @@ export function ApplicationCleanupPage({
                   onClick={() => setConfirming(false)}
                   variant="outline"
                 >
-                  取消
+                  {t("actions.cancel")}
                 </Button>
                 <Button disabled={uninstalling} onClick={uninstallSelected} variant="default">
                   <Trash2 className={uninstalling ? "animate-spin" : undefined} size={16} />
-                  {uninstalling ? "卸载中" : "确认卸载"}
+                  {uninstalling ? t("common.processing") : t("actions.confirmUninstall")}
                 </Button>
               </div>
             ) : (
@@ -385,15 +386,19 @@ export function ApplicationCleanupPage({
                 variant="default"
               >
                 <Trash2 size={16} />
-                卸载所选
+                {t("actions.uninstallSelected")}
               </Button>
             )
           }
         >
           <div>
-            <strong>应用包</strong>
+            <strong>{t("apps.title")}</strong>
             <span>
-              {busy ? (scanning ? "扫描中" : "处理中") : `${filteredPackages.length} 项`}
+              {busy
+                ? scanning
+                  ? t("common.scanning")
+                  : t("common.processing")
+                : `${formatCount(filteredPackages.length, locale)} ${t("common.items")}`}
             </span>
           </div>
         </PanelTitle>
@@ -401,7 +406,7 @@ export function ApplicationCleanupPage({
         {confirming && privilegeCount > 0 ? (
           <div className="flex min-h-[38px] items-center gap-2 border-b border-[#f1d4b8] bg-[#fff9f2] px-5 text-[13px] text-[#8a4b12]">
             <ShieldAlert size={16} />
-            <span>{privilegeCount} {copy.privilege}</span>
+            <span>{formatCount(privilegeCount, locale)} {platformPrivilege}</span>
           </div>
         ) : null}
 
@@ -409,11 +414,13 @@ export function ApplicationCleanupPage({
           <ActivityPanel
             caption={
               scanning
-                ? copy.scanning
-                : `正在处理 ${selectedIds.length} 个已确认软件包`
+                ? platformScanning
+                : t("apps.activity.processing", {
+                    count: formatCount(selectedIds.length, locale),
+                  })
             }
             icon={scanning ? Search : Trash2}
-            title={scanning ? "正在扫描应用包" : "正在卸载所选应用"}
+            title={scanning ? t("apps.activity.scanTitle") : t("apps.activity.uninstallTitle")}
           />
         ) : (
           <PackageRows
@@ -455,6 +462,7 @@ function PackageRows({
   onShowDetails: (packageItem: InstalledPackage) => void;
   onTogglePackage: (id: string) => void;
 }) {
+  const { t } = useI18n();
   const [contextMenu, setContextMenu] = useState<{
     packageItem: InstalledPackage;
     x: number;
@@ -507,15 +515,15 @@ function PackageRows({
   if (packages.length === 0) {
     return (
       <CleanupEmptyState
-        description="扫描后会显示当前系统中可识别的软件包。"
+        description={t("apps.empty.description")}
         icon={Package}
-        title="暂无应用包"
+        title={t("apps.empty.title")}
       />
     );
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" role="table" aria-label="应用包">
+    <div className="flex min-h-0 flex-1 flex-col" role="table" aria-label={t("apps.title")}>
       <div
         className={cn(
           packageGridClass,
@@ -524,11 +532,11 @@ function PackageRows({
         )}
         role="row"
       >
-        <span role="columnheader">来源</span>
-        <span role="columnheader">应用</span>
-        <span role="columnheader">版本</span>
-        <span className="text-right" role="columnheader">大小</span>
-        <span className="text-right" role="columnheader">选择</span>
+        <span role="columnheader">{t("apps.table.source")}</span>
+        <span role="columnheader">{t("apps.table.app")}</span>
+        <span role="columnheader">{t("apps.table.version")}</span>
+        <span className="text-right" role="columnheader">{t("apps.table.size")}</span>
+        <span className="text-right" role="columnheader">{t("apps.table.select")}</span>
       </div>
 
       <div className="min-h-0 overflow-auto">
@@ -576,7 +584,7 @@ function PackageRows({
               </span>
               <span className="flex justify-end" role="cell">
                 <Checkbox
-                  aria-label={`选择${item.name}`}
+                  aria-label={t("file.select", { name: item.name })}
                   checked={checked}
                   onChange={() => onTogglePackage(item.id)}
                 />
@@ -612,6 +620,7 @@ function PackageContextMenu({
   onClose: () => void;
   onShowDetails: (packageItem: InstalledPackage) => void;
 }) {
+  const { t } = useI18n();
   const left = Math.max(8, Math.min(x, window.innerWidth - 184));
   const top = Math.max(8, Math.min(y, window.innerHeight - 48));
 
@@ -631,7 +640,7 @@ function PackageContextMenu({
         type="button"
       >
         <Info size={15} />
-        <span>查看详情</span>
+        <span>{t("apps.viewDetails")}</span>
       </button>
     </div>
   );
@@ -644,24 +653,25 @@ function PackageDetailModal({
   packageItem: InstalledPackage;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const managerLabel = managerLabels[packageItem.manager] ?? packageItem.manager;
   const sourceLabel =
     packageItem.source === "user"
-      ? "用户安装"
+      ? t("apps.source.user")
       : packageItem.source === "system"
-        ? "系统安装"
+        ? t("apps.source.system")
         : packageItem.source === "applications"
-          ? "Applications"
+          ? t("apps.source.applications")
           : packageItem.source === "homebrew"
-            ? "Homebrew"
+            ? t("apps.source.homebrew")
             : packageItem.source === "HKCU"
-              ? "当前用户"
+              ? t("appData.permission.currentUser")
               : packageItem.source === "HKLM"
-                ? "本机"
+                ? t("appData.permission.localMachine")
         : packageItem.source || "-";
   const privilegeLabel = packageItem.requires_privilege
-    ? "需要管理员权限"
-    : "通常无需管理员权限";
+    ? t("apps.permission.needsAdmin")
+    : t("apps.permission.usuallyNoAdmin");
 
   return (
     <DialogContent
@@ -679,7 +689,7 @@ function PackageDetailModal({
           </DialogDescription>
         </div>
         <Button
-          aria-label="关闭详情"
+          aria-label={t("apps.packageDetail.close")}
           className="w-[34px] min-w-[34px] p-0"
           onClick={onClose}
           variant="ghost"
@@ -690,27 +700,27 @@ function PackageDetailModal({
 
       <div className="min-h-0 overflow-y-auto bg-white">
         <div className="grid grid-cols-2 gap-2.5 px-4 py-3.5 max-[720px]:grid-cols-1">
-          <PackageDetailField label="包管理器" value={managerLabel} />
+          <PackageDetailField label={t("apps.packageDetail.manager")} value={managerLabel} />
           <PackageDetailField
-            label="大小"
+            label={t("apps.packageDetail.size")}
             value={packageItem.size > 0 ? formatSize(packageItem.size) : "-"}
           />
-          <PackageDetailField label="版本" value={packageItem.version || "-"} />
-          <PackageDetailField label="来源" value={sourceLabel} />
-          <PackageDetailField label="权限" value={privilegeLabel} />
+          <PackageDetailField label={t("apps.packageDetail.version")} value={packageItem.version || "-"} />
+          <PackageDetailField label={t("apps.packageDetail.source")} value={sourceLabel} />
+          <PackageDetailField label={t("apps.packageDetail.permission")} value={privilegeLabel} />
           <PackageDetailField
             className="col-span-2 max-[720px]:col-span-1"
-            label="内部 ID"
+            label={t("apps.packageDetail.id")}
             value={packageItem.id}
           />
         </div>
 
         <div className="border-t border-[#eeeeee] px-4 pt-3.5 pb-4">
           <strong className="block text-[13px] font-[760] leading-tight text-[#171717]">
-            描述
+            {t("apps.packageDetail.description")}
           </strong>
           <p className="mt-2 text-[13px] leading-normal text-[#555555] [overflow-wrap:anywhere]">
-            {packageItem.description || "无描述"}
+            {packageItem.description || t("apps.noDescription")}
           </p>
         </div>
       </div>

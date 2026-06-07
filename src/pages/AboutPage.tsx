@@ -1,5 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import skiffLogo from "../assets/skiff-logo.svg";
+import { useI18n } from "../lib/i18n";
 
 const GITHUB_URL = "https://github.com/DrizzleTime/Skiff";
 
@@ -17,6 +18,8 @@ function GitHubMark() {
 }
 
 export function AboutPage() {
+  const { t } = useI18n();
+
   return (
     <section className="grid min-h-full min-w-0 place-items-center bg-[linear-gradient(180deg,rgb(255_255_255_/_92%),rgb(255_255_255_/_100%)),radial-gradient(circle_at_50%_20%,rgb(0_0_0_/_7%),transparent_34%)] px-6 py-11 max-[720px]:items-start max-[720px]:px-[18px] max-[720px]:py-[54px]">
       <div className="grid w-[min(100%,560px)] justify-items-center gap-[22px] text-center">
@@ -34,8 +37,7 @@ export function AboutPage() {
             Skiff
           </h1>
           <p className="max-w-[520px] text-[15px] leading-[1.8] text-[#555555] max-[720px]:text-sm">
-            Skiff 是一个本地跨平台磁盘清理工具，支持 Linux、macOS 和 Windows。
-            它用于检查缓存、应用、重复文件和大文件，帮助你在删除前看清路径、大小和风险。
+            {t("about.description")}
           </p>
         </div>
 

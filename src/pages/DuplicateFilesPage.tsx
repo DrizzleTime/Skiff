@@ -14,6 +14,7 @@ import {
 } from "../components/cleanup/PageChrome";
 import { StatCard } from "../components/cleanup/StatCard";
 import { formatCount, formatSize } from "../lib/format";
+import { useI18n } from "../lib/i18n";
 import type {
   DeleteFilesResult,
   DuplicateFileGroup,
@@ -32,6 +33,7 @@ export function DuplicateFilesPage({
 }: {
   onDeleteComplete: (result: DeleteFilesResult) => void;
 }) {
+  const { locale, t } = useI18n();
   const [groups, setGroups] = useState<DuplicateFileGroup[]>([]);
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [scannedFiles, setScannedFiles] = useState(0);
@@ -103,7 +105,7 @@ export function DuplicateFilesPage({
       onDeleteComplete(result);
 
       if (result.failed_count > 0) {
-        setError("部分文件删除失败。");
+        setError(t("duplicates.failed"));
       }
     } catch (deleteError) {
       setError(String(deleteError));
@@ -125,17 +127,17 @@ export function DuplicateFilesPage({
   return (
     <PageSurface>
       <ToolStrip>
-        <p>按文件大小和内容哈希查找重复项，默认保留每组第一个文件。</p>
+        <p>{t("duplicates.subtitle")}</p>
         <Button disabled={busy} onClick={scan} variant="outline">
           <Search className={scanning ? "animate-spin" : undefined} size={16} />
-          {scanning ? "扫描中" : groups.length > 0 ? "重新扫描" : "开始扫描"}
+          {scanning ? t("common.scanning") : groups.length > 0 ? t("actions.rescan") : t("actions.startScan")}
         </Button>
       </ToolStrip>
 
       <StatGrid>
-        <StatCard icon={Copy} label="可释放" value={formatSize(reclaimableSize)} caption="每组保留 1 个" />
-        <StatCard icon={FileText} label="重复组" value={formatCount(groups.length)} caption={`已扫描 ${formatCount(scannedFiles)} 个文件`} />
-        <StatCard icon={Trash2} label="已选择" value={formatSize(selectedSize)} caption={`${formatCount(selectedPaths.length)} 个文件`} />
+        <StatCard icon={Copy} label={t("summary.reclaimable")} value={formatSize(reclaimableSize)} caption={t("duplicates.stat.keepOne")} />
+        <StatCard icon={FileText} label={t("duplicates.stat.groups")} value={formatCount(groups.length, locale)} caption={t("format.scannedFiles", { count: formatCount(scannedFiles, locale) })} />
+        <StatCard icon={Trash2} label={t("summary.selected")} value={formatSize(selectedSize)} caption={t("format.selectedFiles", { count: formatCount(selectedPaths.length, locale) })} />
       </StatGrid>
 
       {error ? <InlineMessage kind="error">{error}</InlineMessage> : null}
@@ -145,24 +147,32 @@ export function DuplicateFilesPage({
           actions={
             <Button disabled={selectedPaths.length === 0 || busy} onClick={deleteSelected} variant="default">
               <Trash2 className={deleting ? "animate-spin" : undefined} size={16} />
-              {deleting ? "删除中" : "删除所选"}
+              {deleting ? t("common.deleting") : t("actions.deleteSelected")}
             </Button>
           }
         >
           <div>
-            <strong>重复结果</strong>
-            <span>{busy ? (scanning ? "扫描中" : "删除中") : `${files.length} 个文件`}</span>
+            <strong>{t("duplicates.resultTitle")}</strong>
+            <span>
+              {busy
+                ? scanning
+                  ? t("common.scanning")
+                  : t("common.deleting")
+                : t("format.totalFiles", { count: formatCount(files.length, locale) })}
+            </span>
           </div>
         </PanelTitle>
         {busy ? (
           <ActivityPanel
             caption={
               scanning
-                ? "正在按大小和内容哈希查找重复项"
-                : `正在删除 ${selectedPaths.length} 个已选择文件`
+                ? t("duplicates.activity.scanning")
+                : t("duplicates.activity.deleting", {
+                    count: formatCount(selectedPaths.length, locale),
+                  })
             }
             icon={scanning ? Search : Trash2}
-            title={scanning ? "正在扫描重复文件" : "正在删除文件"}
+            title={scanning ? t("duplicates.activity.scanTitle") : t("duplicates.activity.deleteTitle")}
           />
         ) : (
           <FileRows

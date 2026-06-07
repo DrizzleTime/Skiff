@@ -1,3 +1,5 @@
+import type { Locale } from "./i18n";
+
 export function formatSize(size: number) {
   if (size >= 1024 * 1024 * 1024) {
     return `${(size / 1024 / 1024 / 1024).toFixed(1)} GB`;
@@ -14,23 +16,27 @@ export function formatSize(size: number) {
   return `${size} B`;
 }
 
-export function formatCount(value: number) {
-  return value.toLocaleString("zh-CN");
+export function formatCount(value: number, locale: Locale = "zh-CN") {
+  return value.toLocaleString(locale);
 }
 
-export function formatTime(value: Date) {
-  return value.toLocaleTimeString("zh-CN", {
+export function formatTime(value: Date, locale: Locale = "zh-CN") {
+  return value.toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
   });
 }
 
-export function formatDate(value: number | null) {
+export function formatDate(
+  value: number | null,
+  locale: Locale = "zh-CN",
+  emptyLabel = "Unknown time",
+) {
   if (!value) {
-    return "未知时间";
+    return emptyLabel;
   }
 
-  return new Date(value * 1000).toLocaleDateString("zh-CN", {
+  return new Date(value * 1000).toLocaleDateString(locale, {
     month: "2-digit",
     day: "2-digit",
   });

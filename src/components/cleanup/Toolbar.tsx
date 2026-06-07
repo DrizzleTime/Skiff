@@ -3,10 +3,11 @@ import { Button } from "../ui/button";
 import { Progress } from "../ui/progress";
 import {
   isJunkCleanupView,
-  statusLabels,
-  viewDescriptions,
-  viewLabels,
+  statusLabelKeys,
+  viewDescriptionKeys,
+  viewLabelKeys,
 } from "../../lib/cleanup";
+import { useI18n } from "../../lib/i18n";
 import type { ActiveView, RunState } from "../../types/cleanup";
 
 export function Toolbar({
@@ -34,16 +35,17 @@ export function Toolbar({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   const busy = runState === "scanning" || runState === "cleaning";
   const subtitle = isJunkCleanupView(activeView)
-    ? `${statusLabels[runState]}${mountPoint ? ` · ${mountPoint}` : ""}`
-    : viewDescriptions[activeView];
+    ? `${t(statusLabelKeys[runState])}${mountPoint ? ` · ${mountPoint}` : ""}`
+    : t(viewDescriptionKeys[activeView]);
 
   return (
     <header className="grid min-h-[72px] min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-[#eeeeee] bg-white px-7 max-[980px]:px-6 max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_auto] max-[720px]:px-3 max-[720px]:py-2.5">
       <div className="min-w-0">
         <h1 className="overflow-hidden text-ellipsis whitespace-nowrap text-[25px] font-extrabold leading-tight tracking-normal text-[#151515]">
-          {viewLabels[activeView]}
+          {t(viewLabelKeys[activeView])}
         </h1>
         <span className="mt-1 block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-tight text-[#424242]">
           {subtitle}
@@ -66,7 +68,7 @@ export function Toolbar({
                 variant="outline"
               >
                 <X size={16} />
-                取消
+                {t("actions.cancel")}
               </Button>
               <Button
                 className="h-8 gap-1.5 rounded-md bg-[#181818] px-3 text-[13px]"
@@ -75,7 +77,7 @@ export function Toolbar({
                 variant="default"
               >
                 <Trash2 size={16} />
-                确认清理
+                {t("actions.confirmClean")}
               </Button>
             </>
           ) : (
@@ -87,7 +89,7 @@ export function Toolbar({
                 variant="outline"
               >
                 <RotateCw className={busy ? "animate-spin" : undefined} size={16} />
-                {hasTargets ? "重新扫描" : "扫描"}
+                {hasTargets ? t("actions.rescan") : t("actions.scan")}
               </Button>
               <Button
                 className="h-8 gap-1.5 rounded-md bg-[#181818] px-3 text-[13px]"
@@ -96,7 +98,7 @@ export function Toolbar({
                 variant="default"
               >
                 <Trash2 size={16} />
-                清理所选
+                {t("actions.cleanSelected")}
               </Button>
             </>
           )}

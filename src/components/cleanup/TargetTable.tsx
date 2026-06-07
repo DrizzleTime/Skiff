@@ -1,7 +1,9 @@
 import { Badge } from "../ui/badge";
 import { Checkbox } from "../ui/checkbox";
-import { categoryLabels, iconForTarget, riskLabels } from "../../lib/cleanup";
+import { categoryLabelKeys, iconForTarget, riskLabelKeys } from "../../lib/cleanup";
 import { formatCount, formatSize } from "../../lib/format";
+import { useI18n } from "../../lib/i18n";
+import { getLocalizedTarget } from "../../lib/targetTranslations";
 import { cn } from "../../lib/utils";
 import type { ActiveView, CleanupTarget } from "../../types/cleanup";
 import { EmptyState } from "./EmptyState";
@@ -24,6 +26,8 @@ export function TargetTable({
   onToggleTarget: (id: string) => void;
   onSelectTarget: (id: string) => void;
 }) {
+  const { locale, t } = useI18n();
+
   if (targets.length === 0) {
     return <EmptyState activeView={activeView} />;
   }
@@ -38,11 +42,11 @@ export function TargetTable({
         role="row"
       >
         <span role="columnheader" />
-        <span role="columnheader">名称</span>
-        <span role="columnheader">类型</span>
-        <span role="columnheader">风险</span>
-        <span className="text-right" role="columnheader">大小</span>
-        <span className="text-right" role="columnheader">文件</span>
+        <span role="columnheader">{t("table.name")}</span>
+        <span role="columnheader">{t("inspector.category")}</span>
+        <span role="columnheader">{t("table.risk")}</span>
+        <span className="text-right" role="columnheader">{t("inspector.size")}</span>
+        <span className="text-right" role="columnheader">{t("inspector.files")}</span>
         <span role="columnheader" />
       </div>
 
@@ -51,6 +55,7 @@ export function TargetTable({
           const checked = selectedIdSet.has(target.id);
           const disabled = !target.cleanable || Boolean(target.error);
           const Icon = iconForTarget(target);
+          const targetCopy = getLocalizedTarget(target, locale);
 
           return (
             <div
@@ -70,19 +75,19 @@ export function TargetTable({
 
               <div className="grid min-w-0 gap-1" role="cell">
                 <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-bold leading-tight text-[#151515]">
-                  {target.name}
+                  {targetCopy.name}
                 </strong>
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-tight text-[#747474]">
-                  {target.description}
+                  {targetCopy.description}
                 </span>
               </div>
 
               <span className="text-xs text-[#555555] max-[720px]:hidden" role="cell">
-                {categoryLabels[target.category]}
+                {t(categoryLabelKeys[target.category])}
               </span>
 
               <span className="max-[720px]:hidden" role="cell">
-                <Badge variant={target.risk}>{riskLabels[target.risk]}</Badge>
+                <Badge variant={target.risk}>{t(riskLabelKeys[target.risk])}</Badge>
               </span>
 
               <strong className="whitespace-nowrap text-right text-[13px] font-[720] text-[#171717]" role="cell">
@@ -90,11 +95,11 @@ export function TargetTable({
               </strong>
 
               <span className="whitespace-nowrap text-right text-xs text-[#555555] max-[720px]:hidden" role="cell">
-                {formatCount(target.files)}
+                {formatCount(target.files, locale)}
               </span>
 
               <Checkbox
-                aria-label={`选择${target.name}`}
+                aria-label={t("file.select", { name: targetCopy.name })}
                 checked={checked}
                 disabled={disabled}
                 onChange={() => onToggleTarget(target.id)}

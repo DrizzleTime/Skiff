@@ -9,6 +9,7 @@ import { Toolbar } from "./components/cleanup/Toolbar";
 import { WindowTitlebar } from "./components/WindowTitlebar";
 import { formatSize, formatTime } from "./lib/format";
 import { isJunkCleanupView } from "./lib/cleanup";
+import { useI18n } from "./lib/i18n";
 import { cn } from "./lib/utils";
 import { AboutPage } from "./pages/AboutPage";
 import { AgentCleanupPage } from "./pages/AgentCleanupPage";
@@ -42,6 +43,7 @@ function waitForNextFrame() {
 }
 
 function App() {
+  const { locale, t } = useI18n();
   const [activeView, setActiveView] = useState<ActiveView>("overview");
   const [targets, setTargets] = useState<CleanupTarget[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -235,7 +237,7 @@ function App() {
       await refreshDiskStatus();
 
       if (result.failed_count > 0) {
-        setErrorMessage("部分项目清理失败，详情见清理记录。");
+        setErrorMessage(t("history.failedStatus"));
       }
     } catch (error) {
       setRunState("error");
@@ -284,7 +286,7 @@ function App() {
     }
 
     if (view === "history") {
-      return lastRun ? `${lastRun.items.length} 项` : "";
+      return lastRun ? t("history.row.processed", { count: lastRun.items.length }) : "";
     }
 
     return "";
@@ -294,7 +296,7 @@ function App() {
     const runResult: CleanupRunResult = {
       items: result.items.map((item) => ({
         id: item.path,
-        name: item.path.split("/").pop() || "文件",
+        name: item.path.split("/").pop() || t("common.file"),
         path: item.path,
         released_size: item.released_size,
         deleted_files: item.success ? 1 : 0,
@@ -541,8 +543,10 @@ function App() {
               </span>
             </div>
             <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-tight">
-              上次清理：
-              {lastCleanupAt ? `今天 ${formatTime(lastCleanupAt)}` : "暂无记录"}
+              {t("overview.footer.lastCleanup")}
+              {lastCleanupAt
+                ? t("common.todayAt", { time: formatTime(lastCleanupAt, locale) })
+                : t("history.empty.title")}
             </span>
           </footer>
         </section>

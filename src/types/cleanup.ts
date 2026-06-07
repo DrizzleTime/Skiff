@@ -115,7 +115,10 @@ export type AppSettings = {
   large_file_min_size: number;
   duplicate_min_size: number;
   close_to_tray: boolean;
+  language: LanguagePreference;
 };
+
+export type LanguagePreference = "system" | "zh-CN" | "en-US";
 
 export type AppInfo = {
   name: string;
