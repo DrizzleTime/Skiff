@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Linux dependencies
         run: |
@@ -59,7 +59,7 @@ jobs:
 
       - name: Upload Linux package artifacts
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: skiff-linux-packages
           path: |
@@ -70,12 +70,12 @@ jobs:
 
   release-windows:
     name: Build Windows exe
-    runs-on: windows-latest
+    runs-on: windows-2022
     needs: release-linux
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -109,7 +109,7 @@ jobs:
 
       - name: Upload Windows exe artifacts
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: skiff-windows-exe
           path: src-tauri/target/release/bundle/nsis/*.exe
