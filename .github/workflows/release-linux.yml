@@ -1,0 +1,116 @@
+name: Release Packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release-linux:
+    name: Build Linux packages
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Publish Linux packages
+        if: github.ref_type == 'tag'
+        uses: tauri-apps/tauri-action@v0.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: bun run tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: Skiff ${{ github.ref_name }}
+          releaseBody: Linux packages and Windows exe installers are available in the release assets.
+          releaseDraft: true
+          prerelease: false
+          args: --bundles deb rpm appimage
+
+      - name: Build Linux packages
+        if: github.event_name == 'workflow_dispatch'
+        uses: tauri-apps/tauri-action@v0.6
+        with:
+          tauriScript: bun run tauri
+          args: --bundles deb rpm appimage
+
+      - name: Upload Linux package artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skiff-linux-packages
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+
+  release-windows:
+    name: Build Windows exe
+    runs-on: windows-latest
+    needs: release-linux
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Publish Windows exe
+        if: github.ref_type == 'tag'
+        uses: tauri-apps/tauri-action@v0.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tauriScript: bun run tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: Skiff ${{ github.ref_name }}
+          releaseBody: Linux packages and Windows exe installers are available in the release assets.
+          releaseDraft: true
+          prerelease: false
+          args: --bundles nsis
+
+      - name: Build Windows exe
+        if: github.event_name == 'workflow_dispatch'
+        uses: tauri-apps/tauri-action@v0.6
+        with:
+          tauriScript: bun run tauri
+          args: --bundles nsis
+
+      - name: Upload Windows exe artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: skiff-windows-exe
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
