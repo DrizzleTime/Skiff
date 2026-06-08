@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "windows": [
+      {
+        "title": "skiff",
+        "width": 1200,
+        "height": 800,
+        "decorations": true,
+        "transparent": false,
+        "shadow": true
+      }
+    ]
+  }
+}

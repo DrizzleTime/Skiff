@@ -42,6 +42,21 @@ function waitForNextFrame() {
   });
 }
 
+function getInitialAppPlatform(): AppInfo["platform"] {
+  const platform = window.navigator.platform.toLowerCase();
+  const userAgent = window.navigator.userAgent.toLowerCase();
+
+  if (platform.includes("mac") || userAgent.includes("mac os")) {
+    return "macos";
+  }
+
+  if (platform.includes("win") || userAgent.includes("windows")) {
+    return "windows";
+  }
+
+  return "linux";
+}
+
 function App() {
   const { locale, t } = useI18n();
   const [activeView, setActiveView] = useState<ActiveView>("overview");
@@ -61,7 +76,7 @@ function App() {
   const [packageScanResult, setPackageScanResult] = useState<PackageScanResult | null>(null);
   const [packageScanIncludesSystem, setPackageScanIncludesSystem] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
-  const [appPlatform, setAppPlatform] = useState<AppInfo["platform"]>("linux");
+  const [appPlatform, setAppPlatform] = useState<AppInfo["platform"]>(getInitialAppPlatform);
 
   useEffect(() => {
     void refreshDiskStatus();
@@ -417,12 +432,25 @@ function App() {
   };
 
   const messageText = errorMessage ?? diskError;
+  const useSystemTitlebar = appPlatform === "macos";
 
   return (
-    <main className="grid h-full w-full grid-rows-[40px_minmax(0,1fr)] overflow-hidden rounded-2xl border border-black/10 bg-[#f3f5f7] shadow-[0_24px_80px_rgba(15,23,42,0.16)] max-[720px]:h-auto max-[720px]:min-h-screen max-[720px]:grid-rows-[40px_auto] max-[720px]:overflow-visible max-[720px]:rounded-none max-[720px]:border-0 max-[720px]:shadow-none">
-      <WindowTitlebar />
+    <main
+      className={cn(
+        "grid h-full w-full overflow-hidden max-[720px]:h-auto max-[720px]:min-h-screen max-[720px]:overflow-visible",
+        useSystemTitlebar
+          ? "grid-rows-[minmax(0,1fr)] bg-[#f7f8f6] max-[720px]:grid-rows-[auto]"
+          : "grid-rows-[40px_minmax(0,1fr)] rounded-2xl border border-black/10 bg-[#f3f5f7] shadow-[0_24px_80px_rgba(15,23,42,0.16)] max-[720px]:grid-rows-[40px_auto] max-[720px]:rounded-none max-[720px]:border-0 max-[720px]:shadow-none",
+      )}
+    >
+      {useSystemTitlebar ? null : <WindowTitlebar />}
 
-      <div className="grid min-h-0 min-w-0 grid-cols-[232px_minmax(0,1fr)] overflow-hidden bg-[#f7f8f6] max-[720px]:min-h-[calc(100vh-40px)] max-[720px]:grid-cols-1 max-[720px]:overflow-visible">
+      <div
+        className={cn(
+          "grid min-h-0 min-w-0 grid-cols-[232px_minmax(0,1fr)] overflow-hidden bg-[#f7f8f6] max-[720px]:grid-cols-1 max-[720px]:overflow-visible",
+          useSystemTitlebar ? "max-[720px]:min-h-screen" : "max-[720px]:min-h-[calc(100vh-40px)]",
+        )}
+      >
         <AppSidebar
           activeView={activeView}
           onSelectView={selectView}

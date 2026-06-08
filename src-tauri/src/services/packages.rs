@@ -11,7 +11,8 @@ use std::{
     collections::HashMap,
     env, fs, io,
     path::{Path, PathBuf},
-    process::{Command, Output},
+    process::{self, Command, Output},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 pub fn scan_installed_packages_without_icons(
@@ -254,13 +255,54 @@ fn macos_app_icon_data_url(app_path: &Path) -> Option<String> {
     } else {
         format!("{icon_name}.icns")
     };
-    icon_data_url(
-        &app_path
-            .join("Contents/Resources")
-            .join(icon_file)
-            .display()
-            .to_string(),
-    )
+    let icon_path = app_path.join("Contents/Resources").join(icon_file);
+
+    macos_icns_icon_data_url(&icon_path)
+}
+
+fn macos_icns_icon_data_url(icon_path: &Path) -> Option<String> {
+    let output_path = temp_macos_icon_path()?;
+    let output = Command::new("sips")
+        .arg("-s")
+        .arg("format")
+        .arg("png")
+        .arg(icon_path)
+        .arg("--out")
+        .arg(&output_path)
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        let _ = fs::remove_file(&output_path);
+        return None;
+    }
+
+    let bytes = match fs::read(&output_path) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            let _ = fs::remove_file(&output_path);
+            return None;
+        }
+    };
+    let _ = fs::remove_file(&output_path);
+    if bytes.len() > 512 * 1024 {
+        return None;
+    }
+
+    Some(format!(
+        "data:image/png;base64,{}",
+        general_purpose::STANDARD.encode(bytes)
+    ))
+}
+
+fn temp_macos_icon_path() -> Option<PathBuf> {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    let process_id = process::id();
+
+    Some(env::temp_dir().join(format!("skiff-app-icon-{process_id}-{timestamp}.png")))
 }
 
 fn scan_homebrew_packages(kind: &str, manager: &str, label: &str) -> Vec<InstalledPackage> {

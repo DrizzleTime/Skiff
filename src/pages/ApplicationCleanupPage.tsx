@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Box, Info, Package, Search, ShieldAlert, Trash2, X } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -468,24 +468,38 @@ function PackageRows({
     x: number;
     y: number;
   } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!contextMenu) {
       return;
     }
 
-    let removeClickListener = false;
+    let removeListeners = false;
 
     function closeContextMenu() {
       setContextMenu(null);
     }
 
-    function closeContextMenuOnClick(event: MouseEvent) {
+    function isInsideContextMenu(target: EventTarget | null) {
+      return target instanceof Node && contextMenuRef.current?.contains(target);
+    }
+
+    function closeContextMenuOnPointerDown(event: PointerEvent) {
       if (event.button !== 0) {
+        return;
+      }
+      if (isInsideContextMenu(event.target)) {
         return;
       }
 
       setContextMenu(null);
+    }
+
+    function closeContextMenuOnContextMenu(event: MouseEvent) {
+      if (!isInsideContextMenu(event.target)) {
+        setContextMenu(null);
+      }
     }
 
     function closeContextMenuOnEscape(event: KeyboardEvent) {
@@ -495,20 +509,21 @@ function PackageRows({
     }
 
     const listenerTimer = window.setTimeout(() => {
-      window.addEventListener("click", closeContextMenuOnClick);
-      removeClickListener = true;
+      window.addEventListener("pointerdown", closeContextMenuOnPointerDown);
+      window.addEventListener("contextmenu", closeContextMenuOnContextMenu, true);
+      window.addEventListener("scroll", closeContextMenu, true);
+      window.addEventListener("keydown", closeContextMenuOnEscape);
+      removeListeners = true;
     }, 0);
-
-    window.addEventListener("scroll", closeContextMenu, true);
-    window.addEventListener("keydown", closeContextMenuOnEscape);
 
     return () => {
       window.clearTimeout(listenerTimer);
-      if (removeClickListener) {
-        window.removeEventListener("click", closeContextMenuOnClick);
+      if (removeListeners) {
+        window.removeEventListener("pointerdown", closeContextMenuOnPointerDown);
+        window.removeEventListener("contextmenu", closeContextMenuOnContextMenu, true);
+        window.removeEventListener("scroll", closeContextMenu, true);
+        window.removeEventListener("keydown", closeContextMenuOnEscape);
       }
-      window.removeEventListener("scroll", closeContextMenu, true);
-      window.removeEventListener("keydown", closeContextMenuOnEscape);
     };
   }, [contextMenu]);
 
@@ -596,6 +611,7 @@ function PackageRows({
 
       {contextMenu ? (
         <PackageContextMenu
+          menuRef={contextMenuRef}
           packageItem={contextMenu.packageItem}
           x={contextMenu.x}
           y={contextMenu.y}
@@ -608,12 +624,14 @@ function PackageRows({
 }
 
 function PackageContextMenu({
+  menuRef,
   packageItem,
   x,
   y,
   onClose,
   onShowDetails,
 }: {
+  menuRef: RefObject<HTMLDivElement | null>;
   packageItem: InstalledPackage;
   x: number;
   y: number;
@@ -627,6 +645,8 @@ function PackageContextMenu({
   return (
     <div
       className="fixed z-[60] w-[168px] rounded-md border border-[#d4d4d8] bg-white p-1 text-[#18181b] shadow-lg"
+      onContextMenu={(event) => event.preventDefault()}
+      ref={menuRef}
       role="menu"
       style={{ left, top }}
     >
