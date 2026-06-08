@@ -27,7 +27,7 @@
 ## Features
 
 - **Disk overview**: reads total, used, available space, usage ratio, and disk location for the current user's home directory.
-- **Junk cleanup**: scans and cleans platform-specific cache locations, including system caches, browser caches, developer tool caches, Flatpak cache on Linux, and Homebrew cache on macOS.
+- **Junk cleanup**: scans and cleans platform-specific cache locations, including system caches, browser caches, developer tool caches, Flatpak and Arch package caches on Linux, and Homebrew cache on macOS.
 - **Large file scan**: scans common user directories for large files and deletes selected files after confirmation.
 - **Duplicate file scan**: finds duplicate files by size and content hash, keeping the first file in each group selected as the default survivor.
 - **Application cleanup**: reads Linux packages, macOS applications and Homebrew packages, or Windows uninstall registry entries, with filtering, search, selection, and confirmed uninstall.
@@ -45,6 +45,7 @@ Skiff performs real file deletion and package uninstall operations. The current 
 - Application uninstall uses the platform's registered uninstall mechanism:
   - APT: `apt-get remove -y`
   - RPM: prefers `dnf remove -y`, then `yum remove -y`, `zypper --non-interactive remove`, and finally `rpm -e`
+  - Pacman: `pacman -R --noconfirm -- <package>`
   - Flatpak: `flatpak uninstall -y --app`
   - macOS `.app`: moves the app bundle to Trash
   - Homebrew: `brew uninstall --formula` or `brew uninstall --cask`
@@ -139,7 +140,7 @@ skiff files delete --path /home/user/Downloads/example.iso --yes
 skiff agents scan
 skiff agents clean --ids <id> --yes
 skiff packages scan --include-system
-skiff packages uninstall --ids apt:example --yes
+skiff packages uninstall --ids pacman:example --yes
 ```
 
 Every CLI command supports `--json` for scripts, cron, or systemd jobs:

@@ -46,6 +46,7 @@ import type {
 const managerLabels: Record<string, string> = {
   apt: "APT",
   rpm: "RPM",
+  pacman: "Pacman",
   flatpak: "Flatpak",
   "macos-app": "macOS",
   "homebrew-formula": "Brew",
@@ -692,20 +693,7 @@ function PackageDetailModal({
 }) {
   const { t } = useI18n();
   const managerLabel = managerLabels[packageItem.manager] ?? packageItem.manager;
-  const sourceLabel =
-    packageItem.source === "user"
-      ? t("apps.source.user")
-      : packageItem.source === "system"
-        ? t("apps.source.system")
-        : packageItem.source === "applications"
-          ? t("apps.source.applications")
-          : packageItem.source === "homebrew"
-            ? t("apps.source.homebrew")
-            : packageItem.source === "HKCU"
-              ? t("appData.permission.currentUser")
-              : packageItem.source === "HKLM"
-                ? t("appData.permission.localMachine")
-        : packageItem.source || "-";
+  const sourceLabel = packageSourceLabel(packageItem.source, t);
   const privilegeLabel = packageItem.requires_privilege
     ? t("apps.permission.needsAdmin")
     : t("apps.permission.usuallyNoAdmin");
@@ -763,6 +751,27 @@ function PackageDetailModal({
       </div>
     </DialogContent>
   );
+}
+
+function packageSourceLabel(source: string, t: (key: I18nKey) => string) {
+  switch (source) {
+    case "user":
+      return t("apps.source.user");
+    case "system":
+      return t("apps.source.system");
+    case "applications":
+      return t("apps.source.applications");
+    case "homebrew":
+      return t("apps.source.homebrew");
+    case "aur":
+      return t("apps.source.aur");
+    case "HKCU":
+      return t("appData.permission.currentUser");
+    case "HKLM":
+      return t("appData.permission.localMachine");
+    default:
+      return source || "-";
+  }
 }
 
 function PackageDetailField({

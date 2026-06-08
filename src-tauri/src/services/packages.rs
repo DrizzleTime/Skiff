@@ -8,7 +8,7 @@ use crate::{
 use base64::{engine::general_purpose, Engine as _};
 use plist::Value as PlistValue;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     env, fs, io,
     path::{Path, PathBuf},
     process::{self, Command, Output},
@@ -91,6 +91,18 @@ fn scan_linux_packages(
     });
     if rpm_available {
         packages.extend(scan_rpm_packages()?);
+    }
+
+    let pacman_available = command_exists("pacman");
+    managers.push(PackageManagerStatus {
+        id: "pacman".to_string(),
+        name: "Pacman".to_string(),
+        available: pacman_available,
+        command: "pacman".to_string(),
+        note: "Arch Linux 系统包和 AUR foreign 包，卸载需要管理员权限。".to_string(),
+    });
+    if pacman_available {
+        packages.extend(scan_pacman_packages()?);
     }
 
     let flatpak_available = command_exists("flatpak");
@@ -591,6 +603,9 @@ fn is_user_facing_package(package: &InstalledPackage) -> bool {
     if package.manager == "flatpak" {
         return true;
     }
+    if package.manager == "pacman" && package.source == "aur" {
+        return true;
+    }
 
     let name = package.name.to_ascii_lowercase();
     let description = package.description.to_ascii_lowercase();
@@ -729,6 +744,89 @@ fn parse_rpm_packages(output: &str) -> Vec<InstalledPackage> {
             })
         })
         .collect()
+}
+
+fn scan_pacman_packages() -> Result<Vec<InstalledPackage>, String> {
+    let local_db = Path::new("/var/lib/pacman/local");
+    let entries =
+        fs::read_dir(local_db).map_err(|err| format!("读取 Pacman 本地数据库失败：{err}"))?;
+    let foreign_packages = scan_pacman_foreign_packages();
+    let mut packages = Vec::new();
+
+    for entry in entries.flatten() {
+        let desc_path = entry.path().join("desc");
+        let Ok(content) = fs::read_to_string(desc_path) else {
+            continue;
+        };
+        if let Some(package) = parse_pacman_package_desc(&content, &foreign_packages) {
+            packages.push(package);
+        }
+    }
+
+    Ok(packages)
+}
+
+fn scan_pacman_foreign_packages() -> HashSet<String> {
+    let Ok(output) = Command::new("pacman").args(["-Qqm"]).output() else {
+        return HashSet::new();
+    };
+    if !output.status.success() {
+        return HashSet::new();
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn parse_pacman_package_desc(
+    content: &str,
+    foreign_packages: &HashSet<String>,
+) -> Option<InstalledPackage> {
+    let package_id = pacman_desc_value(content, "NAME")?;
+    let version = pacman_desc_value(content, "VERSION").unwrap_or_default();
+    let description = pacman_desc_value(content, "DESC").unwrap_or_default();
+    let size = pacman_desc_value(content, "ISIZE")
+        .and_then(|value| value.parse::<u64>().ok())
+        .unwrap_or(0);
+    let source = if foreign_packages.contains(&package_id) {
+        "aur"
+    } else {
+        "system"
+    };
+
+    Some(InstalledPackage {
+        id: format!("pacman:{package_id}"),
+        manager: "pacman".to_string(),
+        name: package_id.clone(),
+        package_id,
+        version,
+        description,
+        icon_url: None,
+        size,
+        source: source.to_string(),
+        requires_privilege: true,
+    })
+}
+
+fn pacman_desc_value(content: &str, key: &str) -> Option<String> {
+    let marker = format!("%{key}%");
+    let mut lines = content.lines();
+
+    while let Some(line) = lines.next() {
+        if line.trim() != marker {
+            continue;
+        }
+
+        return lines
+            .find(|value| !value.trim().is_empty())
+            .map(|value| value.trim().to_string());
+    }
+
+    None
 }
 
 fn scan_flatpak_packages() -> Result<Vec<InstalledPackage>, String> {
@@ -1088,6 +1186,10 @@ fn uninstall_one_package(package: &InstalledPackage) -> Result<(), String> {
     match package.manager.as_str() {
         "apt" => run_privileged_package_command("apt-get", &["remove", "-y", &package.package_id]),
         "rpm" => uninstall_rpm_package(&package.package_id),
+        "pacman" => run_privileged_package_command(
+            "pacman",
+            &["-R", "--noconfirm", "--", &package.package_id],
+        ),
         "flatpak" => uninstall_flatpak_package(package),
         "macos-app" => return uninstall_macos_app_package(package),
         "homebrew-formula" => run_homebrew_uninstall("--formula", &package.package_id),
@@ -1238,6 +1340,22 @@ mod tests {
     }
 
     #[test]
+    fn parses_pacman_local_db_desc() {
+        let mut foreign_packages = HashSet::new();
+        foreign_packages.insert("visual-studio-code-bin".to_string());
+        let content = "%NAME%\nvisual-studio-code-bin\n\n%VERSION%\n1.100.0-1\n\n%DESC%\nVisual Studio Code binary release\n\n%ISIZE%\n456789\n";
+        let package = parse_pacman_package_desc(content, &foreign_packages).unwrap();
+
+        assert_eq!(package.id, "pacman:visual-studio-code-bin");
+        assert_eq!(package.manager, "pacman");
+        assert_eq!(package.version, "1.100.0-1");
+        assert_eq!(package.description, "Visual Studio Code binary release");
+        assert_eq!(package.size, 456789);
+        assert_eq!(package.source, "aur");
+        assert_eq!(package.requires_privilege, true);
+    }
+
+    #[test]
     fn parses_flatpak_package_rows() {
         let output = "com.example.App\tExample App\t1.2.3\tuser\t11.8 MB\n";
         let packages = parse_flatpak_packages(output);
@@ -1303,6 +1421,24 @@ mod tests {
             icon_url: None,
             size: 1024,
             source: "system".to_string(),
+            requires_privilege: true,
+        };
+
+        assert_eq!(is_user_facing_package(&app), true);
+    }
+
+    #[test]
+    fn keeps_pacman_aur_packages_in_application_cleanup() {
+        let app = InstalledPackage {
+            id: "pacman:visual-studio-code-bin".to_string(),
+            manager: "pacman".to_string(),
+            name: "visual-studio-code-bin".to_string(),
+            package_id: "visual-studio-code-bin".to_string(),
+            version: "1.100.0-1".to_string(),
+            description: "Visual Studio Code binary release".to_string(),
+            icon_url: None,
+            size: 1024,
+            source: "aur".to_string(),
             requires_privilege: true,
         };
 

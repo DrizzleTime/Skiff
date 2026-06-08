@@ -35,6 +35,14 @@
     "name": "DNF/YUM 缓存",
     "description": "调用系统包管理器清理软件包、元数据和数据库缓存。"
   },
+  "pacman-cache-clean": {
+    "name": "Pacman 缓存",
+    "description": "清理 Arch Linux 软件包缓存和同步数据库缓存。"
+  },
+  "paru-cache": {
+    "name": "Paru 缓存",
+    "description": "清理 paru AUR 构建和下载缓存。"
+  },
   "edge-cache": {
     "name": "Edge 缓存",
     "description": "Microsoft Edge 页面资源缓存，不包含书签、密码和历史记录。"
@@ -66,6 +74,10 @@
   "homebrew-cache-clean": {
     "name": "Homebrew 缓存",
     "description": "调用 Homebrew 清理下载缓存和旧版本缓存。"
+  },
+  "yay-cache": {
+    "name": "Yay 缓存",
+    "description": "清理 yay AUR 构建和下载缓存。"
   },
   "inet-cache": {
     "name": "系统网络缓存",

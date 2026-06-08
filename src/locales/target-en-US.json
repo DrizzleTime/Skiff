@@ -35,6 +35,14 @@
     "name": "DNF/YUM cache",
     "description": "Call the system package manager to clean package, metadata, and database caches."
   },
+  "pacman-cache-clean": {
+    "name": "Pacman cache",
+    "description": "Clean Arch Linux package cache and sync database cache."
+  },
+  "paru-cache": {
+    "name": "Paru cache",
+    "description": "Clean paru AUR build and download cache."
+  },
   "edge-cache": {
     "name": "Edge cache",
     "description": "Microsoft Edge page resource cache. Bookmarks, passwords, and history are not included."
@@ -66,6 +74,10 @@
   "homebrew-cache-clean": {
     "name": "Homebrew cache",
     "description": "Call Homebrew to clean download cache and old version cache."
+  },
+  "yay-cache": {
+    "name": "Yay cache",
+    "description": "Clean yay AUR build and download cache."
   },
   "inet-cache": {
     "name": "System network cache",
