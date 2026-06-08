@@ -166,6 +166,7 @@
   "overview.category.subtitle.waiting": "等待扫描后生成建议",
   "overview.category.title": "清理建议",
   "overview.disk.available": "可用空间",
+  "overview.disk.mount": "挂载点",
   "overview.disk.mountMissing": "未读取挂载点",
   "overview.disk.status": "存储状态",
   "overview.disk.total": "总容量",

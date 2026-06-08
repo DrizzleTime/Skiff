@@ -34,7 +34,7 @@ fn mount_point(path: &Path) -> String {
 
 #[cfg(not(windows))]
 fn df_mount_point(path: &Path) -> Option<String> {
-    let output = Command::new("df").arg(path).output().ok()?;
+    let output = Command::new("df").arg("-P").arg(path).output().ok()?;
     if !output.status.success() {
         return None;
     }
@@ -44,9 +44,14 @@ fn df_mount_point(path: &Path) -> Option<String> {
 
 #[cfg(not(windows))]
 fn parse_df_mount_point(output: &str) -> Option<String> {
-    let line = output.lines().nth(1)?;
+    let mut lines = output.lines().filter(|line| !line.trim().is_empty());
+    let header = lines.next()?;
+    let line = lines.next()?;
+    let mount_index = header
+        .split_whitespace()
+        .position(|part| part == "Mounted")?;
     let parts: Vec<&str> = line.split_whitespace().collect();
-    (parts.len() >= 6).then(|| parts[5..].join(" "))
+    (parts.len() > mount_index).then(|| parts[mount_index..].join(" "))
 }
 
 #[cfg(test)]
@@ -61,5 +66,18 @@ Filesystem     1K-blocks Used Available Use% Mounted on
 ";
 
         assert_eq!(parse_df_mount_point(output).unwrap(), "/home");
+    }
+
+    #[test]
+    fn parses_macos_df_mount_point_output() {
+        let output = "\
+Filesystem     512-blocks      Used  Available Capacity   iused      ifree %iused  Mounted on
+/dev/disk3s5s1 7815622624 1338466 3370299680     30%  1338466 3370299680    0%   /System/Volumes/Data
+";
+
+        assert_eq!(
+            parse_df_mount_point(output).unwrap(),
+            "/System/Volumes/Data"
+        );
     }
 }

@@ -166,6 +166,7 @@
   "overview.category.subtitle.waiting": "Suggestions appear after scanning",
   "overview.category.title": "Cleanup suggestions",
   "overview.disk.available": "Available space",
+  "overview.disk.mount": "Mount point",
   "overview.disk.mountMissing": "Mount point not read",
   "overview.disk.status": "Storage status",
   "overview.disk.total": "Total capacity",

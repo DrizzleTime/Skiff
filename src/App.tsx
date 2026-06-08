@@ -57,6 +57,10 @@ function getInitialAppPlatform(): AppInfo["platform"] {
   return "linux";
 }
 
+function shouldShowCleanupTarget(target: CleanupTarget) {
+  return target.cleanable || Boolean(target.error) || target.size > 0 || target.files > 0;
+}
+
 function App() {
   const { locale, t } = useI18n();
   const [activeView, setActiveView] = useState<ActiveView>("overview");
@@ -105,7 +109,7 @@ function App() {
 
   const visibleTargets = useMemo(() => {
     if (isJunkCleanupView(activeView)) {
-      return targets;
+      return targets.filter(shouldShowCleanupTarget);
     }
 
     return [];
@@ -114,9 +118,8 @@ function App() {
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   const selectedTarget =
-    targets.find((target) => target.id === selectedTargetId) ??
+    visibleTargets.find((target) => target.id === selectedTargetId) ??
     visibleTargets[0] ??
-    targets[0] ??
     null;
 
   const targetSummary = useMemo(() => {
@@ -189,7 +192,7 @@ function App() {
           .filter((target) => target.risk === "safe" && target.cleanable)
           .map((target) => target.id),
       );
-      setSelectedTargetId(result.targets[0]?.id ?? null);
+      setSelectedTargetId(result.targets.find(shouldShowCleanupTarget)?.id ?? null);
       await refreshDiskStatus();
       setRunState("ready");
       setProgress(100);
@@ -276,7 +279,7 @@ function App() {
   function selectView(view: ActiveView) {
     setActiveView(view);
     if (isJunkCleanupView(view)) {
-      setSelectedTargetId(targets[0]?.id ?? null);
+      setSelectedTargetId(targets.find(shouldShowCleanupTarget)?.id ?? null);
       return;
     }
 

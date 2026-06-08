@@ -5,36 +5,45 @@ import { DetailLine } from "./DetailLine";
 
 export function DiskStatusPanel({ diskStatus }: { diskStatus: DiskStatus | null }) {
   const { t } = useI18n();
-  const percent = diskStatus?.used_percent ?? 0;
+  const percent = Math.min(100, Math.max(0, diskStatus?.used_percent ?? 0));
 
   return (
     <section className="rounded-lg border border-black/5 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
-      <h2 className="text-[13px] font-[680] leading-tight tracking-normal text-[#14191f]">
-        {t("systemStatus.title")}
-      </h2>
-      <div className="mt-3.5 grid grid-cols-[72px_minmax(0,1fr)] items-center gap-3">
-        <div
-          className="grid size-[68px] place-items-center rounded-full"
-          style={{ background: `conic-gradient(#145c53 ${percent}%, #e4e8e6 0)` }}
-        >
-          <div className="grid size-12 place-items-center rounded-full bg-[#f5f7f6]">
-            <strong className="text-lg font-[760] leading-none text-[#111820]">
-              {diskStatus ? `${percent}%` : "--"}
-            </strong>
-            <span className="mt-1 text-[10px] text-[#6f7782]">{t("systemStatus.used")}</span>
-          </div>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-[13px] font-[680] leading-tight tracking-normal text-[#14191f]">
+            {t("systemStatus.title")}
+          </h2>
+          <span className="mt-1 block text-[11px] leading-tight text-[#7c8490]">
+            {diskStatus?.mount_point ?? t("overview.disk.mountMissing")}
+          </span>
         </div>
+        <strong className="whitespace-nowrap text-lg font-[760] leading-none text-[#111820]">
+          {diskStatus ? `${percent}%` : "--"}
+        </strong>
+      </div>
 
-        <div className="grid gap-1.5">
-          <DetailLine label={t("overview.disk.total")} value={formatSize(diskStatus?.total ?? 0)} />
-          <DetailLine label={t("overview.disk.used")} value={formatSize(diskStatus?.used ?? 0)} />
-          <DetailLine label={t("overview.disk.available")} value={formatSize(diskStatus?.available ?? 0)} />
+      <div className="mt-3">
+        <div className="h-2 overflow-hidden rounded-full bg-[#e8ecea]" aria-label={t("systemStatus.used")}>
+          <span
+            className="block h-full rounded-full bg-[#145c53]"
+            style={{ width: `${percent}%` }}
+          />
         </div>
       </div>
+
+      <div className="mt-3 grid gap-1.5">
+        <DetailLine label={t("overview.disk.total")} value={formatSize(diskStatus?.total ?? 0)} />
+        <DetailLine label={t("overview.disk.used")} value={formatSize(diskStatus?.used ?? 0)} />
+        <DetailLine label={t("overview.disk.available")} value={formatSize(diskStatus?.available ?? 0)} />
+      </div>
+
       {diskStatus ? (
-        <code className="mt-3 block max-w-full whitespace-pre-wrap rounded-md border border-black/5 bg-[#f1f3f2] px-1.5 py-1 font-mono text-[11px] leading-normal text-[#5d6670] [overflow-wrap:anywhere]">
+        <p className="mt-3 min-w-0 rounded-md bg-[#f5f6f5] px-2 py-1.5 text-[11px] leading-normal text-[#68717b] [overflow-wrap:anywhere]">
+          <span className="font-[680] text-[#4f5863]">{t("overview.disk.mount")}</span>
+          {" "}
           {diskStatus.mount_point}
-        </code>
+        </p>
       ) : null}
     </section>
   );
