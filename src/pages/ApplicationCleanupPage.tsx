@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Box, Info, Package, Search, ShieldAlert, Trash2, X } from "lucide-react";
 import { Button } from "../components/ui/button";
@@ -17,15 +24,14 @@ import {
 import { Switch } from "../components/ui/switch";
 import { ActivityPanel } from "../components/cleanup/ActivityPanel";
 import { CleanupEmptyState } from "../components/cleanup/CleanupEmptyState";
+import { MetricCell } from "../components/cleanup/MetricCell";
 import {
   InlineMessage,
   PanelTitle,
   PageSurface,
   ResultPanel,
-  StatGrid,
-  ToolStrip,
 } from "../components/cleanup/PageChrome";
-import { StatCard } from "../components/cleanup/StatCard";
+import { SummaryMetricStrip } from "../components/cleanup/SummaryStrip";
 import { formatCount, formatSize } from "../lib/format";
 import { useI18n, type I18nKey } from "../lib/i18n";
 import { cn } from "../lib/utils";
@@ -46,16 +52,6 @@ const managerLabels: Record<string, string> = {
   "homebrew-cask": "Cask",
   "windows-registry": "Windows",
 };
-const platformCaptions = {
-  linux: "APT / RPM / Flatpak",
-  macos: "Apps / Homebrew",
-  windows: "Registry uninstall",
-} satisfies Record<"linux" | "macos" | "windows", string>;
-const platformDescriptionKeys = {
-  linux: "apps.platform.linux.description",
-  macos: "apps.platform.macos.description",
-  windows: "apps.platform.windows.description",
-} satisfies Record<"linux" | "macos" | "windows", I18nKey>;
 const platformPrivilegeKeys = {
   linux: "apps.platform.linux.privilege",
   macos: "apps.platform.macos.privilege",
@@ -81,12 +77,14 @@ export function ApplicationCleanupPage({
   platform,
   initialIncludeSystem,
   initialScanResult,
+  onChromeChange,
   onScanComplete,
   onUninstallComplete,
 }: {
   platform: "linux" | "macos" | "windows";
   initialIncludeSystem: boolean;
   initialScanResult: PackageScanResult | null;
+  onChromeChange: (chrome: { actions: ReactNode; summary: ReactNode } | null) => void;
   onScanComplete: (result: PackageScanResult, includeSystem: boolean) => void;
   onUninstallComplete: (result: PackageUninstallResult) => void;
 }) {
@@ -197,7 +195,6 @@ export function ApplicationCleanupPage({
   );
   const { privilegeCount, selectedSize } = selectedSummary;
   const busy = scanning || uninstalling;
-  const platformDescription = t(platformDescriptionKeys[platform]);
   const platformPrivilege = t(platformPrivilegeKeys[platform]);
   const platformScanning = t(platformScanningKeys[platform]);
 
@@ -281,26 +278,73 @@ export function ApplicationCleanupPage({
     }
   }
 
+  const toolbarActions = useMemo(
+    () =>
+      confirming ? (
+        <>
+          <Button
+            className="h-9 gap-1.5 px-3.5 text-[13px]"
+            disabled={uninstalling}
+            onClick={() => setConfirming(false)}
+            variant="outline"
+          >
+            <X size={16} />
+            {t("actions.cancel")}
+          </Button>
+          <Button
+            className="h-9 gap-1.5 px-3.5 text-[13px]"
+            disabled={uninstalling || selectedIds.length === 0}
+            onClick={uninstallSelected}
+            variant="default"
+          >
+            <Trash2 className={uninstalling ? "animate-spin" : undefined} size={16} />
+            {uninstalling ? t("common.processing") : t("actions.confirmUninstall")}
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button
+            className="h-9 gap-1.5 px-3.5 text-[13px]"
+            disabled={busy}
+            onClick={() => void scanPackages()}
+            variant="outline"
+          >
+            <Search className={scanning ? "animate-spin" : undefined} size={16} />
+            {scanning ? t("common.scanning") : packages.length > 0 ? t("actions.rescan") : t("actions.scanApps")}
+          </Button>
+          <Button
+            className="h-9 gap-1.5 px-3.5 text-[13px]"
+            disabled={selectedIds.length === 0 || busy}
+            onClick={() => setConfirming(true)}
+            variant="default"
+          >
+            <Trash2 size={16} />
+            {t("actions.uninstallSelected")}
+          </Button>
+        </>
+      ),
+    [busy, confirming, packages.length, scanning, selectedIds, t, uninstalling],
+  );
+
+  const chromeSummary = useMemo(
+    () => (
+      <SummaryMetricStrip>
+        <MetricCell icon={Package} label={t("apps.stat.installed")} value={formatCount(packages.length, locale)} />
+        <MetricCell icon={Box} label={t("apps.table.source")} value={formatCount(availableManagers, locale)} />
+        <MetricCell icon={Trash2} label={t("summary.selected")} value={formatSize(selectedSize)} />
+      </SummaryMetricStrip>
+    ),
+    [availableManagers, locale, packages.length, selectedSize, t],
+  );
+
+  useEffect(() => {
+    onChromeChange({ actions: toolbarActions, summary: chromeSummary });
+  }, [chromeSummary, onChromeChange, toolbarActions]);
+
+  useEffect(() => () => onChromeChange(null), [onChromeChange]);
+
   return (
     <PageSurface className="flex h-full min-h-0 flex-col max-[720px]:h-auto">
-      <ToolStrip className="mb-3 min-h-9">
-        <p>{platformDescription}</p>
-        <Button
-          disabled={busy}
-          onClick={() => void scanPackages()}
-          variant="outline"
-        >
-          <Search className={scanning ? "animate-spin" : undefined} size={16} />
-          {scanning ? t("common.scanning") : packages.length > 0 ? t("actions.rescan") : t("actions.scanApps")}
-        </Button>
-      </ToolStrip>
-
-      <StatGrid className="mb-3">
-        <StatCard icon={Package} label={t("apps.stat.installed")} value={formatCount(packages.length, locale)} caption={t("apps.stat.currentResults")} />
-        <StatCard icon={Box} label={t("apps.table.source")} value={formatCount(availableManagers, locale)} caption={platformCaptions[platform]} />
-        <StatCard icon={Trash2} label={t("summary.selected")} value={formatSize(selectedSize)} caption={`${formatCount(selectedIds.length, locale)} ${t("apps.title")}`} />
-      </StatGrid>
-
       <div className="mb-2.5 flex flex-wrap items-center gap-2 max-[720px]:items-start">
         <button
           className={cn(
@@ -363,34 +407,7 @@ export function ApplicationCleanupPage({
       {error ? <InlineMessage kind="error">{error}</InlineMessage> : null}
 
       <ResultPanel className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <PanelTitle
-          actions={
-            confirming ? (
-              <div className="flex gap-2">
-                <Button
-                  disabled={uninstalling}
-                  onClick={() => setConfirming(false)}
-                  variant="outline"
-                >
-                  {t("actions.cancel")}
-                </Button>
-                <Button disabled={uninstalling} onClick={uninstallSelected} variant="default">
-                  <Trash2 className={uninstalling ? "animate-spin" : undefined} size={16} />
-                  {uninstalling ? t("common.processing") : t("actions.confirmUninstall")}
-                </Button>
-              </div>
-            ) : (
-              <Button
-                disabled={selectedIds.length === 0 || busy}
-                onClick={() => setConfirming(true)}
-                variant="default"
-              >
-                <Trash2 size={16} />
-                {t("actions.uninstallSelected")}
-              </Button>
-            )
-          }
-        >
+        <PanelTitle>
           <div>
             <strong>{t("apps.title")}</strong>
             <span>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { AppSidebar } from "./components/cleanup/AppSidebar";
@@ -35,6 +35,11 @@ import type {
   RunState,
 } from "./types/cleanup";
 import "./App.css";
+
+type PageChromeConfig = {
+  actions: ReactNode;
+  summary: ReactNode;
+} | null;
 
 function waitForNextFrame() {
   return new Promise<void>((resolve) => {
@@ -81,6 +86,10 @@ function App() {
   const [packageScanIncludesSystem, setPackageScanIncludesSystem] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [appPlatform, setAppPlatform] = useState<AppInfo["platform"]>(getInitialAppPlatform);
+  const [pageChrome, setPageChrome] = useState<PageChromeConfig>(null);
+  const updatePageChrome = useCallback((next: PageChromeConfig) => {
+    setPageChrome(next);
+  }, []);
 
   useEffect(() => {
     void refreshDiskStatus();
@@ -278,6 +287,7 @@ function App() {
 
   function selectView(view: ActiveView) {
     setActiveView(view);
+    setPageChrome(null);
     if (isJunkCleanupView(view)) {
       setSelectedTargetId(targets.find(shouldShowCleanupTarget)?.id ?? null);
       return;
@@ -472,6 +482,7 @@ function App() {
             onScan={scanTargets}
             progress={progress}
             runState={runState}
+            customActions={pageChrome?.actions}
             showActions={cleanupView}
           />
 
@@ -482,6 +493,8 @@ function App() {
               totalFiles={totalFiles}
               totalSize={totalSize}
             />
+          ) : pageChrome?.summary ? (
+            pageChrome.summary
           ) : (
             <div className="h-0" />
           )}
@@ -517,6 +530,7 @@ function App() {
               ) : activeView === "agent" ? (
                 <AgentCleanupPage
                   initialScanResult={agentScanResult}
+                  onChromeChange={updatePageChrome}
                   onCleanupComplete={handleAgentCleanupComplete}
                   onScanComplete={handleAgentScanComplete}
                 />
@@ -525,6 +539,7 @@ function App() {
                   platform={appPlatform}
                   initialIncludeSystem={packageScanIncludesSystem}
                   initialScanResult={packageScanResult}
+                  onChromeChange={updatePageChrome}
                   onScanComplete={handlePackageScanComplete}
                   onUninstallComplete={handlePackageUninstallComplete}
                 />

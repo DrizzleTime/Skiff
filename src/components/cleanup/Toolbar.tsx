@@ -1,4 +1,5 @@
 import { RotateCw, Trash2, X } from "lucide-react";
+import type { ReactNode } from "react";
 import { Button } from "../ui/button";
 import { Progress } from "../ui/progress";
 import {
@@ -18,6 +19,7 @@ export function Toolbar({
   hasTargets,
   canClean,
   showActions = true,
+  customActions,
   onScan,
   onClean,
   onConfirm,
@@ -30,6 +32,7 @@ export function Toolbar({
   hasTargets: boolean;
   canClean: boolean;
   showActions?: boolean;
+  customActions?: ReactNode;
   onScan: () => void;
   onClean: () => void;
   onConfirm: () => void;
@@ -58,9 +61,9 @@ export function Toolbar({
         </div>
       )}
 
-      {showActions ? (
+      {showActions || customActions ? (
         <div className="flex justify-end gap-2 max-[720px]:justify-stretch max-[720px]:[&_button]:flex-1">
-          {runState === "confirming" ? (
+          {customActions ?? (runState === "confirming" ? (
             <>
               <Button
                 className="h-9 gap-1.5 px-3.5 text-[13px]"
@@ -101,7 +104,7 @@ export function Toolbar({
                 {t("actions.cleanSelected")}
               </Button>
             </>
-          )}
+          ))}
         </div>
       ) : null}
     </header>

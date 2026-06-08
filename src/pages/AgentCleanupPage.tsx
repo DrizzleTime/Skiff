@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Bot, Clock3, Database, Search, ShieldAlert, Trash2 } from "lucide-react";
+import { Bot, Clock3, Database, Search, ShieldAlert, Trash2, X } from "lucide-react";
 import { ActivityPanel } from "../components/cleanup/ActivityPanel";
 import { CleanupEmptyState } from "../components/cleanup/CleanupEmptyState";
+import { MetricCell } from "../components/cleanup/MetricCell";
 import {
   InlineMessage,
   PanelTitle,
   PageSurface,
   ResultPanel,
-  StatGrid,
-  ToolStrip,
 } from "../components/cleanup/PageChrome";
-import { StatCard } from "../components/cleanup/StatCard";
+import { SummaryMetricStrip } from "../components/cleanup/SummaryStrip";
 import { Button } from "../components/ui/button";
 import { Checkbox } from "../components/ui/checkbox";
 import {
@@ -63,10 +62,12 @@ function agentLabel(agent: string, labels: Record<string, string>) {
 
 export function AgentCleanupPage({
   initialScanResult,
+  onChromeChange,
   onCleanupComplete,
   onScanComplete,
 }: {
   initialScanResult: AgentThreadScanResult | null;
+  onChromeChange: (chrome: { actions: ReactNode; summary: ReactNode } | null) => void;
   onCleanupComplete: (result: AgentCleanupResult) => void;
   onScanComplete: (result: AgentThreadScanResult) => void;
 }) {
@@ -119,10 +120,6 @@ export function AgentCleanupPage({
   const filteredSize = useMemo(
     () => filteredThreads.reduce((sum, thread) => sum + thread.size, 0),
     [filteredThreads],
-  );
-  const totalLogs = useMemo(
-    () => threads.reduce((sum, thread) => sum + thread.log_count, 0),
-    [threads],
   );
   const availableAgents = useMemo(
     () => agents.filter((agent) => agent.available).length,
@@ -214,22 +211,73 @@ export function AgentCleanupPage({
     setConfirming(false);
   }
 
+  const toolbarActions = useMemo(
+    () =>
+      confirming ? (
+        <>
+          <Button
+            className="h-9 gap-1.5 px-3.5 text-[13px]"
+            disabled={cleaning}
+            onClick={() => setConfirming(false)}
+            variant="outline"
+          >
+            <X size={16} />
+            {t("actions.cancel")}
+          </Button>
+          <Button
+            className="h-9 gap-1.5 px-3.5 text-[13px]"
+            disabled={cleaning || selectedIds.length === 0}
+            onClick={cleanSelected}
+            variant="default"
+          >
+            <Trash2 className={cleaning ? "animate-spin" : undefined} size={16} />
+            {cleaning ? t("common.cleaning") : t("actions.confirmClean")}
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button
+            className="h-9 gap-1.5 px-3.5 text-[13px]"
+            disabled={busy}
+            onClick={() => void scanThreads()}
+            variant="outline"
+          >
+            <Search className={scanning ? "animate-spin" : undefined} size={16} />
+            {threads.length > 0 ? t("actions.rescan") : t("actions.scanAgent")}
+          </Button>
+          <Button
+            className="h-9 gap-1.5 px-3.5 text-[13px]"
+            disabled={selectedIds.length === 0 || busy}
+            onClick={() => setConfirming(true)}
+            variant="default"
+          >
+            <Trash2 size={16} />
+            {t("actions.cleanSelected")}
+          </Button>
+        </>
+      ),
+    [busy, cleaning, confirming, scanning, selectedIds, t, threads.length],
+  );
+
+  const chromeSummary = useMemo(
+    () => (
+      <SummaryMetricStrip>
+        <MetricCell icon={Bot} label={t("agent.table.session")} value={formatCount(threads.length, locale)} />
+        <MetricCell icon={Database} label="Agent" value={formatCount(availableAgents, locale)} />
+        <MetricCell icon={Trash2} label={t("summary.selected")} value={formatSize(selectedSize)} />
+      </SummaryMetricStrip>
+    ),
+    [availableAgents, locale, selectedSize, t, threads.length],
+  );
+
+  useEffect(() => {
+    onChromeChange({ actions: toolbarActions, summary: chromeSummary });
+  }, [chromeSummary, onChromeChange, toolbarActions]);
+
+  useEffect(() => () => onChromeChange(null), [onChromeChange]);
+
   return (
     <PageSurface className="flex h-full min-h-0 flex-col max-[720px]:h-auto">
-      <ToolStrip className="mb-3 min-h-9">
-        <p>{t("agent.subtitle")}</p>
-        <Button disabled={busy} onClick={() => void scanThreads()} variant="outline">
-          <Search className={scanning ? "animate-spin" : undefined} size={16} />
-          {threads.length > 0 ? t("actions.rescan") : t("actions.scanAgent")}
-        </Button>
-      </ToolStrip>
-
-      <StatGrid className="mb-3">
-        <StatCard icon={Bot} label={t("agent.table.session")} value={formatCount(threads.length, locale)} caption={`${formatCount(totalLogs, locale)} ${t("agent.table.logs")}`} />
-        <StatCard icon={Database} label="Agent" value={formatCount(availableAgents, locale)} caption={t("agent.currentScannable")} />
-        <StatCard icon={Trash2} label={t("summary.selected")} value={formatSize(selectedSize)} caption={`${formatCount(selectedIds.length, locale)} ${t("agent.table.session")}`} />
-      </StatGrid>
-
       <div className="mb-2.5 flex flex-wrap items-center gap-2 max-[720px]:items-start">
         <button
           className={cn(
@@ -283,41 +331,7 @@ export function AgentCleanupPage({
       {error ? <InlineMessage kind="error">{error}</InlineMessage> : null}
 
       <ResultPanel className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <PanelTitle
-          actions={
-            confirming ? (
-              <div className="flex gap-2">
-                <Button
-                  className="h-8 px-3 text-[13px]"
-                  disabled={cleaning}
-                  onClick={() => setConfirming(false)}
-                  variant="outline"
-                >
-                  {t("actions.cancel")}
-                </Button>
-                <Button
-                  className="h-8 gap-1.5 px-3 text-[13px]"
-                  disabled={cleaning}
-                  onClick={cleanSelected}
-                  variant="destructive"
-                >
-                  <Trash2 className={cleaning ? "animate-spin" : undefined} size={16} />
-                  {cleaning ? t("common.cleaning") : t("actions.confirmClean")}
-                </Button>
-              </div>
-            ) : (
-              <Button
-                className="h-8 gap-1.5 rounded-md px-3 text-[13px]"
-                disabled={selectedIds.length === 0 || busy}
-                onClick={() => setConfirming(true)}
-                variant="default"
-              >
-                <Trash2 size={16} />
-                {t("actions.cleanSelected")}
-              </Button>
-            )
-          }
-        >
+        <PanelTitle>
           <div>
             <strong>{t("agent.title")}</strong>
             <span>
