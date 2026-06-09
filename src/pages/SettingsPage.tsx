@@ -1,11 +1,8 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Save, Settings } from "lucide-react";
-import {
-  InlineMessage,
-  PageSurface,
-  ToolStrip,
-} from "../components/cleanup/PageChrome";
+import { toast } from "sonner";
+import { PageSurface, ToolStrip } from "../components/cleanup/PageChrome";
 import { Button } from "../components/ui/button";
 import {
   Field,
@@ -34,7 +31,6 @@ export function SettingsPage() {
   const [closeToTray, setCloseToTray] = useState(true);
   const [localLanguage, setLocalLanguage] =
     useState<LanguagePreference>(languagePreference);
-  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalLanguage(languagePreference);
@@ -53,12 +49,11 @@ export function SettingsPage() {
       setLocalLanguage(settings.language ?? "system");
       setLanguagePreference(settings.language ?? "system");
     } catch (error) {
-      setMessage(String(error));
+      toast.error(String(error));
     }
   }
 
   async function saveSettings() {
-    setMessage(null);
     try {
       await invoke<AppSettings>("save_settings", {
         settings: {
@@ -69,9 +64,9 @@ export function SettingsPage() {
         },
       });
       setLanguagePreference(localLanguage);
-      setMessage(t("settings.saved"));
+      toast.success(t("settings.saved"));
     } catch (error) {
-      setMessage(String(error));
+      toast.error(String(error));
     }
   }
 
@@ -84,8 +79,6 @@ export function SettingsPage() {
           {t("actions.saveSettings")}
         </Button>
       </ToolStrip>
-
-      {message ? <InlineMessage kind="info">{message}</InlineMessage> : null}
 
       <div className="overflow-visible rounded-md border border-[#e5e5e5] bg-white">
         <div className={settingsRowClass}>
