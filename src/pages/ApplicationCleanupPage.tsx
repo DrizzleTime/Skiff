@@ -74,6 +74,17 @@ function waitForNextFrame() {
   });
 }
 
+function matchesManagerFilter(packageItem: InstalledPackage, managerFilter: string) {
+  if (managerFilter === "all") {
+    return true;
+  }
+  if (managerFilter === "homebrew") {
+    return packageItem.manager === "homebrew-formula" || packageItem.manager === "homebrew-cask";
+  }
+
+  return packageItem.manager === managerFilter;
+}
+
 export function ApplicationCleanupPage({
   platform,
   initialIncludeSystem,
@@ -155,7 +166,7 @@ export function ApplicationCleanupPage({
 
     return packages
       .filter((item) => {
-        const matchesManager = managerFilter === "all" || item.manager === managerFilter;
+        const matchesManager = matchesManagerFilter(item, managerFilter);
         const matchesQuery =
           keyword.length === 0 ||
           item.name.toLowerCase().includes(keyword) ||
