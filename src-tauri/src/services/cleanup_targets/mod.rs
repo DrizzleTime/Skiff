@@ -4,7 +4,10 @@ mod providers;
 mod spec;
 
 use crate::{
-    models::{CleanupRunItemResult, CleanupRunResult, CleanupScanResult, CleanupTarget, PathStats},
+    models::{
+        CleanupProgressPayload, CleanupRunItemResult, CleanupRunResult, CleanupScanResult,
+        CleanupTarget, PathStats,
+    },
     services::cleanup_targets::{
         engine::{clean_path_list, run_cleanup_commands, scan_target, sort_targets},
         spec::display_paths_or_commands,
@@ -17,10 +20,30 @@ pub fn cleanup_target_count(home: &Path) -> u64 {
 }
 
 pub fn scan_targets(home: &Path) -> CleanupScanResult {
-    let mut targets: Vec<CleanupTarget> = providers::build_target_specs(home)
-        .iter()
-        .map(scan_target)
-        .collect();
+    scan_targets_with_progress(home, |_| {})
+}
+
+pub fn scan_targets_with_progress<F>(home: &Path, mut on_progress: F) -> CleanupScanResult
+where
+    F: FnMut(CleanupProgressPayload),
+{
+    let specs = providers::build_target_specs(home);
+    let total = specs.len() as u64;
+    on_progress(cleanup_progress("scanning", 0, total, None, None));
+
+    let mut targets: Vec<CleanupTarget> = Vec::with_capacity(specs.len());
+    for (index, spec) in specs.iter().enumerate() {
+        let target = scan_target(spec);
+        on_progress(cleanup_progress(
+            "scanning",
+            (index + 1) as u64,
+            total,
+            Some(target.id.clone()),
+            Some(target.name.clone()),
+        ));
+        targets.push(target);
+    }
+
     sort_targets(&mut targets);
 
     let total_size = targets.iter().map(|target| target.size).sum();
@@ -34,20 +57,41 @@ pub fn scan_targets(home: &Path) -> CleanupScanResult {
 }
 
 pub fn clean_targets(home: &Path, ids: &[String]) -> CleanupRunResult {
+    clean_targets_with_progress(home, ids, |_| {})
+}
+
+pub fn clean_targets_with_progress<F>(
+    home: &Path,
+    ids: &[String],
+    mut on_progress: F,
+) -> CleanupRunResult
+where
+    F: FnMut(CleanupProgressPayload),
+{
     let specs = providers::build_target_specs(home);
     let mut items = Vec::new();
+    let total = ids.len() as u64;
+    on_progress(cleanup_progress("cleaning", 0, total, None, None));
 
-    for id in ids {
+    for (index, id) in ids.iter().enumerate() {
         let Some(spec) = specs.iter().find(|candidate| candidate.id == *id) else {
+            let target_name = "未知清理项目".to_string();
             items.push(CleanupRunItemResult {
                 id: id.clone(),
-                name: "未知清理项目".to_string(),
+                name: target_name.clone(),
                 path: String::new(),
                 released_size: 0,
                 deleted_files: 0,
                 success: false,
                 error: Some("前端传入了未注册的清理项目。".to_string()),
             });
+            on_progress(cleanup_progress(
+                "cleaning",
+                (index + 1) as u64,
+                total,
+                Some(id.clone()),
+                Some(target_name),
+            ));
             continue;
         };
 
@@ -82,6 +126,14 @@ pub fn clean_targets(home: &Path, ids: &[String]) -> CleanupRunResult {
                 error: Some(err),
             }),
         }
+
+        on_progress(cleanup_progress(
+            "cleaning",
+            (index + 1) as u64,
+            total,
+            Some(spec.id.clone()),
+            Some(spec.name.clone()),
+        ));
     }
 
     let released_size = items.iter().map(|item| item.released_size).sum();
@@ -93,6 +145,29 @@ pub fn clean_targets(home: &Path, ids: &[String]) -> CleanupRunResult {
         released_size,
         deleted_files,
         failed_count,
+    }
+}
+
+fn cleanup_progress(
+    phase: &str,
+    processed: u64,
+    total: u64,
+    target_id: Option<String>,
+    target_name: Option<String>,
+) -> CleanupProgressPayload {
+    let percent = if total == 0 {
+        100
+    } else {
+        processed.min(total) * 100 / total
+    };
+
+    CleanupProgressPayload {
+        phase: phase.to_string(),
+        processed,
+        total,
+        percent,
+        target_id,
+        target_name,
     }
 }
 
@@ -119,6 +194,25 @@ mod tests {
         assert_eq!(result.released_size, 0);
         assert_eq!(result.deleted_files, 0);
         assert_eq!(result.items[0].success, false);
+
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn cleanup_reports_progress_for_requested_ids() {
+        let home = temp_root("progress");
+        let mut progress = Vec::new();
+
+        let _ = clean_targets_with_progress(&home, &[String::from("not-registered")], |payload| {
+            progress.push(payload)
+        });
+
+        assert_eq!(progress.len(), 2);
+        assert_eq!(progress[0].phase, "cleaning");
+        assert_eq!(progress[0].processed, 0);
+        assert_eq!(progress[0].percent, 0);
+        assert_eq!(progress[1].processed, 1);
+        assert_eq!(progress[1].percent, 100);
 
         let _ = fs::remove_dir_all(home);
     }

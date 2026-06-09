@@ -5,10 +5,443 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Skiff</title>
+    <style>
+      :root {
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        color: #171717;
+        background: transparent;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        -webkit-text-size-adjust: 100%;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body,
+      #root {
+        width: 100%;
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        min-height: 100vh;
+        overflow: hidden;
+        background: transparent;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      #root {
+        background: transparent;
+      }
+
+      .startup-shell {
+        position: relative;
+        display: grid;
+        width: 100%;
+        height: 100%;
+        grid-template-columns: 232px minmax(0, 1fr);
+        overflow: hidden;
+        background: #f7f8f6;
+      }
+
+      .startup-sidebar {
+        min-width: 0;
+        border-right: 1px solid rgb(0 0 0 / 5%);
+        background: #f3f5f7;
+      }
+
+      .startup-brand {
+        display: flex;
+        min-height: 78px;
+        align-items: center;
+        gap: 12px;
+        padding: 0 20px;
+      }
+
+      .startup-logo {
+        display: grid;
+        width: 36px;
+        height: 36px;
+        place-items: center;
+        border: 1px solid rgb(0 0 0 / 5%);
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 1px 2px rgb(15 23 42 / 6%);
+        color: #145c53;
+        font-size: 18px;
+        font-weight: 760;
+        line-height: 1;
+      }
+
+      .startup-name {
+        display: block;
+        color: #101419;
+        font-size: 22px;
+        font-weight: 760;
+        line-height: 1;
+      }
+
+      .startup-subtitle {
+        display: block;
+        margin-top: 5px;
+        color: #7a828c;
+        font-size: 12px;
+        line-height: 1.2;
+      }
+
+      .startup-nav {
+        display: grid;
+        gap: 8px;
+        padding: 8px 12px;
+      }
+
+      .startup-nav-item {
+        height: 40px;
+        border-radius: 8px;
+        background: rgb(255 255 255 / 74%);
+        box-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+      }
+
+      .startup-nav-item:nth-child(n + 2) {
+        width: calc(100% - 20px);
+        background: rgb(255 255 255 / 45%);
+        box-shadow: none;
+      }
+
+      .startup-main {
+        display: grid;
+        min-width: 0;
+        min-height: 0;
+        grid-template-rows: 76px minmax(0, 1fr) 40px;
+        background: #f7f8f6;
+      }
+
+      .startup-toolbar {
+        display: flex;
+        min-width: 0;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        border-bottom: 1px solid rgb(0 0 0 / 5%);
+        padding: 0 28px;
+      }
+
+      .startup-toolbar-lines {
+        display: grid;
+        min-width: 0;
+        gap: 8px;
+      }
+
+      .startup-line {
+        height: 10px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e7ece8;
+      }
+
+      .startup-line.short {
+        width: 126px;
+      }
+
+      .startup-line.long {
+        width: 252px;
+        max-width: 42vw;
+      }
+
+      .startup-action {
+        width: 108px;
+        height: 36px;
+        flex: 0 0 auto;
+        border-radius: 8px;
+        background: #145c53;
+      }
+
+      .startup-content {
+        display: grid;
+        min-width: 0;
+        min-height: 0;
+        grid-template-columns: minmax(0, 1fr) 318px;
+        gap: 18px;
+        padding: 20px 28px 18px;
+      }
+
+      .startup-card {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid rgb(0 0 0 / 5%);
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 18px 45px rgb(30 41 59 / 6%);
+      }
+
+      .startup-hero {
+        min-height: 212px;
+        padding: 24px;
+        background: #fbfbf9;
+      }
+
+      .startup-pill {
+        width: 112px;
+        height: 22px;
+        border: 1px solid #dfe7e4;
+        border-radius: 999px;
+        background: rgb(255 255 255 / 85%);
+      }
+
+      .startup-title {
+        width: min(460px, 72%);
+        height: 29px;
+        margin-top: 22px;
+        border-radius: 8px;
+        background: #e3e8e4;
+      }
+
+      .startup-copy {
+        width: min(610px, 92%);
+        height: 12px;
+        margin-top: 14px;
+        border-radius: 999px;
+        background: #e9ede9;
+      }
+
+      .startup-copy.second {
+        width: min(420px, 78%);
+        margin-top: 8px;
+      }
+
+      .startup-metrics {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .startup-metric {
+        height: 68px;
+        border: 1px solid rgb(0 0 0 / 5%);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .startup-side {
+        display: grid;
+        align-content: start;
+        gap: 12px;
+      }
+
+      .startup-side .startup-card {
+        height: 132px;
+        background: #fff;
+      }
+
+      .startup-footer {
+        border-top: 1px solid rgb(0 0 0 / 5%);
+        background: #f7f8f6;
+      }
+
+      .startup-shimmer {
+        position: relative;
+        overflow: hidden;
+      }
+
+      .startup-shimmer::after {
+        position: absolute;
+        inset: 0;
+        content: "";
+        transform: translateX(-100%);
+        animation: startup-sweep 1.35s ease-in-out infinite;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgb(255 255 255 / 62%),
+          transparent
+        );
+      }
+
+      .startup-loading {
+        position: absolute;
+        right: 28px;
+        bottom: 18px;
+        left: 260px;
+        height: 2px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #d9e2dd;
+      }
+
+      .startup-loading::after {
+        display: block;
+        width: 40%;
+        height: 100%;
+        content: "";
+        animation: startup-progress 1.1s ease-in-out infinite;
+        border-radius: inherit;
+        background: #145c53;
+      }
+
+      @keyframes startup-sweep {
+        0% {
+          transform: translateX(-100%);
+        }
+
+        100% {
+          transform: translateX(100%);
+        }
+      }
+
+      @keyframes startup-progress {
+        0% {
+          transform: translateX(-110%);
+        }
+
+        100% {
+          transform: translateX(260%);
+        }
+      }
+
+      @media (max-width: 980px) {
+        .startup-content {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .startup-side {
+          display: none;
+        }
+      }
+
+      @media (max-width: 720px) {
+        body {
+          overflow: auto;
+        }
+
+        .startup-shell {
+          height: auto;
+          min-height: 100vh;
+          grid-template-columns: 1fr;
+        }
+
+        .startup-sidebar {
+          border-right: 0;
+          border-bottom: 1px solid rgb(0 0 0 / 10%);
+        }
+
+        .startup-brand {
+          min-height: 58px;
+        }
+
+        .startup-nav {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          padding-bottom: 12px;
+        }
+
+        .startup-nav-item:nth-child(n + 2) {
+          width: 100%;
+        }
+
+        .startup-main {
+          min-height: 620px;
+          grid-template-rows: 76px minmax(0, 1fr) 40px;
+        }
+
+        .startup-toolbar {
+          padding: 0 14px;
+        }
+
+        .startup-action {
+          width: 92px;
+        }
+
+        .startup-content {
+          padding: 14px;
+        }
+
+        .startup-hero {
+          min-height: 360px;
+          padding: 18px;
+        }
+
+        .startup-metrics {
+          grid-template-columns: 1fr;
+        }
+
+        .startup-title,
+        .startup-copy,
+        .startup-copy.second {
+          width: 100%;
+        }
+
+        .startup-loading {
+          right: 14px;
+          left: 14px;
+        }
+      }
+    </style>
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main class="startup-shell" aria-label="Skiff 正在启动">
+        <aside class="startup-sidebar">
+          <div class="startup-brand">
+            <div class="startup-logo" aria-hidden="true">S</div>
+            <div>
+              <strong class="startup-name">Skiff</strong>
+              <span class="startup-subtitle">正在准备工作区</span>
+            </div>
+          </div>
+          <div class="startup-nav" aria-hidden="true">
+            <div class="startup-nav-item startup-shimmer"></div>
+            <div class="startup-nav-item startup-shimmer"></div>
+            <div class="startup-nav-item startup-shimmer"></div>
+            <div class="startup-nav-item startup-shimmer"></div>
+            <div class="startup-nav-item startup-shimmer"></div>
+          </div>
+        </aside>
+
+        <section class="startup-main">
+          <header class="startup-toolbar" aria-hidden="true">
+            <div class="startup-toolbar-lines">
+              <div class="startup-line short startup-shimmer"></div>
+              <div class="startup-line long startup-shimmer"></div>
+            </div>
+            <div class="startup-action startup-shimmer"></div>
+          </header>
+
+          <div class="startup-content">
+            <section class="startup-card startup-hero" aria-hidden="true">
+              <div class="startup-pill startup-shimmer"></div>
+              <div class="startup-title startup-shimmer"></div>
+              <div class="startup-copy startup-shimmer"></div>
+              <div class="startup-copy second startup-shimmer"></div>
+              <div class="startup-metrics">
+                <div class="startup-metric startup-shimmer"></div>
+                <div class="startup-metric startup-shimmer"></div>
+                <div class="startup-metric startup-shimmer"></div>
+              </div>
+            </section>
+
+            <aside class="startup-side" aria-hidden="true">
+              <div class="startup-card startup-shimmer"></div>
+              <div class="startup-card startup-shimmer"></div>
+            </aside>
+          </div>
+
+          <footer class="startup-footer"></footer>
+        </section>
+
+        <div class="startup-loading" aria-hidden="true"></div>
+      </main>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

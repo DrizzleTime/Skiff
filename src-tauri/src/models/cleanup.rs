@@ -40,6 +40,16 @@ pub struct CleanupScanResult {
     pub total_files: u64,
 }
 
+#[derive(Clone, Serialize)]
+pub struct CleanupProgressPayload {
+    pub phase: String,
+    pub processed: u64,
+    pub total: u64,
+    pub percent: u64,
+    pub target_id: Option<String>,
+    pub target_name: Option<String>,
+}
+
 #[derive(Deserialize)]
 pub struct CleanupRequest {
     pub ids: Vec<String>,

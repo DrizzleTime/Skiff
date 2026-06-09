@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { AppSidebar } from "./components/cleanup/AppSidebar";
 import { DiskStatusPanel } from "./components/cleanup/DiskStatusPanel";
@@ -25,6 +26,7 @@ import type {
   AgentCleanupResult,
   AgentThreadScanResult,
   AppInfo,
+  CleanupProgressPayload,
   CleanupRunResult,
   CleanupScanResult,
   CleanupTarget,
@@ -35,6 +37,8 @@ import type {
   RunState,
 } from "./types/cleanup";
 import "./App.css";
+
+const CLEANUP_PROGRESS_EVENT = "cleanup-progress";
 
 type PageChromeConfig = {
   actions: ReactNode;
@@ -97,24 +101,27 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (runState !== "scanning" && runState !== "cleaning") {
-      return;
-    }
+    let disposed = false;
+    let unlistenProgress: (() => void) | null = null;
 
-    const ceiling = runState === "scanning" ? 88 : 92;
-    const interval = window.setInterval(() => {
-      setProgress((current) => {
-        if (current >= ceiling) {
-          return current;
+    void listen<CleanupProgressPayload>(CLEANUP_PROGRESS_EVENT, ({ payload }) => {
+      setProgress(payload.percent);
+    })
+      .then((unlisten) => {
+        if (disposed) {
+          unlisten();
+          return;
         }
 
-        const step = current < 48 ? 4 : current < 76 ? 2 : 1;
-        return Math.min(ceiling, current + step);
-      });
-    }, 280);
+        unlistenProgress = unlisten;
+      })
+      .catch(() => undefined);
 
-    return () => window.clearInterval(interval);
-  }, [runState]);
+    return () => {
+      disposed = true;
+      unlistenProgress?.();
+    };
+  }, []);
 
   const visibleTargets = useMemo(() => {
     if (isJunkCleanupView(activeView)) {
@@ -188,13 +195,12 @@ function App() {
 
   async function scanTargets() {
     setRunState("scanning");
-    setProgress(12);
+    setProgress(0);
     setErrorMessage(null);
 
     try {
       await waitForNextFrame();
       const result = await invoke<CleanupScanResult>("scan_cleanup_targets");
-      setProgress(72);
       setTargets(result.targets);
       setSelectedIds(
         result.targets
@@ -230,7 +236,7 @@ function App() {
     }
 
     setRunState("cleaning");
-    setProgress(18);
+    setProgress(0);
     setErrorMessage(null);
 
     try {
@@ -239,7 +245,6 @@ function App() {
         request: { ids: selectedIds },
       });
       setLastRun(result);
-      setProgress(86);
       setTargets((current) =>
         current.map((target) => {
           const itemResult = result.items.find((item) => item.id === target.id);

@@ -1,18 +1,20 @@
 use crate::{
     models::{
         AgentCleanupRequest, AgentCleanupResult, AgentThreadScanResult, AppInfo, AppSettings,
-        CleanupRequest, CleanupRunResult, CleanupScanResult, DeleteFilesRequest, DeleteFilesResult,
-        DiskStatus, DuplicateFileScanRequest, DuplicateFileScanResult, LargeFileScanRequest,
-        LargeFileScanResult, PackageIconRequest, PackageIconResult, PackageScanRequest,
-        PackageScanResult, PackageUninstallRequest, PackageUninstallResult,
-        DEFAULT_DUPLICATE_GROUP_LIMIT, DEFAULT_LARGE_FILE_LIMIT,
+        CleanupProgressPayload, CleanupRequest, CleanupRunResult, CleanupScanResult,
+        DeleteFilesRequest, DeleteFilesResult, DiskStatus, DuplicateFileScanRequest,
+        DuplicateFileScanResult, LargeFileScanRequest, LargeFileScanResult, PackageIconRequest,
+        PackageIconResult, PackageScanRequest, PackageScanResult, PackageUninstallRequest,
+        PackageUninstallResult, DEFAULT_DUPLICATE_GROUP_LIMIT, DEFAULT_LARGE_FILE_LIMIT,
     },
     services::{
         agent_cleanup::{
             clean_agent_threads as clean_agent_thread_items,
             scan_agent_threads as scan_agent_thread_items,
         },
-        cleanup_targets::{clean_targets, cleanup_target_count, scan_targets},
+        cleanup_targets::{
+            clean_targets_with_progress, cleanup_target_count, scan_targets_with_progress,
+        },
         disk::read_disk_status,
         files::{delete_files, find_duplicate_files, find_large_files, scan_roots},
         packages::{
@@ -23,22 +25,37 @@ use crate::{
         system::{home_dir, Platform},
     },
 };
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
+
+const CLEANUP_PROGRESS_EVENT: &str = "cleanup-progress";
 
 #[tauri::command]
-pub async fn scan_cleanup_targets() -> Result<CleanupScanResult, String> {
+pub async fn scan_cleanup_targets(app: AppHandle) -> Result<CleanupScanResult, String> {
     let home = home_dir()?;
-    tauri::async_runtime::spawn_blocking(move || scan_targets(&home))
-        .await
-        .map_err(|err| format!("扫描任务失败：{err}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        scan_targets_with_progress(&home, |progress| emit_cleanup_progress(&app, progress))
+    })
+    .await
+    .map_err(|err| format!("扫描任务失败：{err}"))
 }
 
 #[tauri::command]
-pub async fn run_cleanup(request: CleanupRequest) -> Result<CleanupRunResult, String> {
+pub async fn run_cleanup(
+    app: AppHandle,
+    request: CleanupRequest,
+) -> Result<CleanupRunResult, String> {
     let home = home_dir()?;
-    tauri::async_runtime::spawn_blocking(move || clean_targets(&home, &request.ids))
-        .await
-        .map_err(|err| format!("清理任务失败：{err}"))
+    tauri::async_runtime::spawn_blocking(move || {
+        clean_targets_with_progress(&home, &request.ids, |progress| {
+            emit_cleanup_progress(&app, progress);
+        })
+    })
+    .await
+    .map_err(|err| format!("清理任务失败：{err}"))
+}
+
+fn emit_cleanup_progress(app: &AppHandle, progress: CleanupProgressPayload) {
+    let _ = app.emit(CLEANUP_PROGRESS_EVENT, progress);
 }
 
 #[tauri::command]
@@ -102,10 +119,7 @@ pub fn get_settings() -> Result<AppSettings, String> {
 }
 
 #[tauri::command]
-pub fn save_settings(
-    app: AppHandle,
-    settings: AppSettings,
-) -> Result<AppSettings, String> {
+pub fn save_settings(app: AppHandle, settings: AppSettings) -> Result<AppSettings, String> {
     let home = home_dir()?;
     write_settings(&home, &settings)?;
     crate::tray::refresh_tray_menu(&app, settings.language)

@@ -44,6 +44,15 @@ export type CleanupScanResult = {
   total_files: number;
 };
 
+export type CleanupProgressPayload = {
+  phase: "scanning" | "cleaning";
+  processed: number;
+  total: number;
+  percent: number;
+  target_id: string | null;
+  target_name: string | null;
+};
+
 export type CleanupRunItemResult = {
   id: string;
   name: string;
