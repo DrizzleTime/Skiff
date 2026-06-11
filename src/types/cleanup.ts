@@ -16,6 +16,7 @@ export type ActiveView =
   | "junk"
   | "agent"
   | "developer"
+  | "environment"
   | "duplicates"
   | "large-files"
   | "history"
@@ -128,6 +129,68 @@ export type AppSettings = {
 };
 
 export type LanguagePreference = "system" | "zh-CN" | "en-US";
+
+export type EnvShell = "zsh" | "bash" | "fish" | "powershell" | "cmd";
+export type EnvEntryKind = "variable" | "path";
+export type EnvEntrySource =
+  | "current-process"
+  | "shell-config"
+  | "skiff-block"
+  | "windows-user-env";
+export type EnvChangeAction = "upsert" | "delete";
+
+export type EnvShellConfig = {
+  shell: EnvShell;
+  label: string;
+  config_path: string;
+  exists: boolean;
+  available: boolean;
+  is_default: boolean;
+  activation_command: string;
+  restart_hint: string;
+  requires_registry: boolean;
+};
+
+export type EnvEntry = {
+  id: string;
+  kind: EnvEntryKind;
+  key: string;
+  value: string;
+  source: EnvEntrySource;
+  shell: EnvShell | null;
+  source_label: string;
+  config_path: string | null;
+  line_number: number | null;
+  editable: boolean;
+  importable: boolean;
+  enabled: boolean;
+  note: string | null;
+};
+
+export type EnvInventory = {
+  shells: EnvShellConfig[];
+  entries: EnvEntry[];
+};
+
+export type EnvEntryChange = {
+  action: EnvChangeAction;
+  kind: EnvEntryKind;
+  key: string;
+  value: string;
+  source: EnvEntrySource;
+  shell: EnvShell | null;
+  config_path: string | null;
+  line_number: number | null;
+  original_key: string | null;
+  original_value: string | null;
+  enabled: boolean;
+};
+
+export type EnvInventorySaveResult = {
+  changed_count: number;
+  backup_paths: string[];
+  registry_changed: boolean;
+};
 
 export type AppInfo = {
   name: string;

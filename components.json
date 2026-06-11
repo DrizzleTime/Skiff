@@ -7,7 +7,7 @@
     "config": "",
     "css": "src/App.css",
     "baseColor": "neutral",
-    "cssVariables": false,
+    "cssVariables": true,
     "prefix": ""
   },
   "aliases": {

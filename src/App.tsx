@@ -16,6 +16,7 @@ import { AboutPage } from "./pages/AboutPage";
 import { AgentCleanupPage } from "./pages/AgentCleanupPage";
 import { ApplicationCleanupPage } from "./pages/ApplicationCleanupPage";
 import { DuplicateFilesPage } from "./pages/DuplicateFilesPage";
+import { EnvironmentPage } from "./pages/EnvironmentPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { JunkCleanupPage } from "./pages/JunkCleanupPage";
 import { LargeFilesPage } from "./pages/LargeFilesPage";
@@ -548,6 +549,8 @@ function App() {
                   onScanComplete={handlePackageScanComplete}
                   onUninstallComplete={handlePackageUninstallComplete}
                 />
+              ) : activeView === "environment" ? (
+                <EnvironmentPage onChromeChange={updatePageChrome} />
               ) : activeView === "duplicates" ? (
                 <DuplicateFilesPage onDeleteComplete={handleFileDeleteComplete} />
               ) : activeView === "large-files" ? (

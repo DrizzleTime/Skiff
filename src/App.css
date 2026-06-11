@@ -1,6 +1,47 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:is(.dark *));
+
 :root {
+  --radius: 0.5rem;
+  --background: #f7f8f6;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #18181b;
+  --popover: #ffffff;
+  --popover-foreground: #18181b;
+  --primary: #145c53;
+  --primary-foreground: #ffffff;
+  --secondary: #edf1ef;
+  --secondary-foreground: #16211f;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #edf1ef;
+  --accent-foreground: #101419;
+  --destructive: #b42318;
+  --destructive-foreground: #ffffff;
+  --border: #d4d4d8;
+  --input: #d8d8d8;
+  --ring: #145c53;
+  --success: #166534;
+  --success-background: #e7f6ed;
+  --warning: #92400e;
+  --warning-background: #fef3c7;
+  --careful: #991b1b;
+  --careful-background: #fee2e2;
+  --chart-1: #145c53;
+  --chart-2: #59626e;
+  --chart-3: #8a6f2a;
+  --chart-4: #3b82a0;
+  --chart-5: #b42318;
+  --sidebar: #f3f5f7;
+  --sidebar-foreground: #333b45;
+  --sidebar-primary: #145c53;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: #101419;
+  --sidebar-border: rgb(0 0 0 / 5%);
+  --sidebar-ring: #145c53;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
@@ -11,6 +52,92 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+.dark {
+  --background: #101419;
+  --foreground: #f5f7f6;
+  --card: #171d1b;
+  --card-foreground: #f5f7f6;
+  --popover: #171d1b;
+  --popover-foreground: #f5f7f6;
+  --primary: #7fd1c4;
+  --primary-foreground: #09211d;
+  --secondary: #24302d;
+  --secondary-foreground: #edf1ef;
+  --muted: #242a2d;
+  --muted-foreground: #a7afb7;
+  --accent: #22332f;
+  --accent-foreground: #edf1ef;
+  --destructive: #f97066;
+  --destructive-foreground: #ffffff;
+  --border: rgb(255 255 255 / 14%);
+  --input: rgb(255 255 255 / 16%);
+  --ring: #7fd1c4;
+  --success: #86efac;
+  --success-background: #123622;
+  --warning: #facc15;
+  --warning-background: #3a2f12;
+  --careful: #fca5a5;
+  --careful-background: #3a1515;
+  --chart-1: #7fd1c4;
+  --chart-2: #a7afb7;
+  --chart-3: #facc15;
+  --chart-4: #38bdf8;
+  --chart-5: #f97066;
+  --sidebar: #171d1b;
+  --sidebar-foreground: #edf1ef;
+  --sidebar-primary: #7fd1c4;
+  --sidebar-primary-foreground: #09211d;
+  --sidebar-accent: #22332f;
+  --sidebar-accent-foreground: #edf1ef;
+  --sidebar-border: rgb(255 255 255 / 12%);
+  --sidebar-ring: #7fd1c4;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-background: var(--success-background);
+  --color-warning: var(--warning);
+  --color-warning-background: var(--warning-background);
+  --color-careful: var(--careful);
+  --color-careful-background: var(--careful-background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 * {

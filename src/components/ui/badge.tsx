@@ -7,10 +7,10 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-[#f4f4f5] text-[#52525b]",
-        safe: "bg-[#e7f6ed] text-[#166534]",
-        review: "bg-[#fef3c7] text-[#92400e]",
-        careful: "bg-[#fee2e2] text-[#991b1b]",
+        default: "bg-muted text-muted-foreground",
+        safe: "bg-success-background text-success",
+        review: "bg-warning-background text-warning",
+        careful: "bg-careful-background text-careful",
       },
     },
     defaultVariants: {

@@ -13,14 +13,14 @@ export function Progress({ value, className }: ProgressProps) {
   return (
     <div
       aria-label={t("progress.aria")}
-      className={cn("h-1.5 overflow-hidden rounded-full bg-[#e4e4e7]", className)}
+      className={cn("h-1.5 overflow-hidden rounded-full bg-muted", className)}
       role="progressbar"
       aria-valuemax={100}
       aria-valuemin={0}
       aria-valuenow={safeValue}
     >
       <div
-        className="h-full rounded-full bg-[#18181b] transition-[width] duration-300"
+        className="h-full rounded-full bg-primary transition-[width] duration-300"
         style={{ width: `${safeValue}%` }}
       />
     </div>

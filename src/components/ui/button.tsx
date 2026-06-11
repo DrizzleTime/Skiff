@@ -3,16 +3,19 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#145c53]/20 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-md border px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-[#145c53] text-white hover:bg-[#0f4a43]",
+        default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/90",
         secondary:
-          "border-transparent bg-[#edf1ef] text-[#16211f] hover:bg-[#e1e7e4]",
-        outline: "border-black/10 bg-white text-[#17201f] hover:bg-[#f3f5f4]",
-        ghost: "border-transparent bg-transparent text-[#58616d] hover:bg-[#edf1ef]",
-        destructive: "border-transparent bg-[#b42318] text-white hover:bg-[#912018]",
+          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        outline:
+          "border-border bg-card text-card-foreground hover:bg-accent hover:text-accent-foreground",
+        ghost:
+          "border-transparent bg-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+        destructive:
+          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/90",
       },
     },
     defaultVariants: {

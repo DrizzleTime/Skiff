@@ -53,7 +53,7 @@ function FieldGroup({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 const fieldVariants = cva(
-  "group/field flex w-full gap-3 data-[invalid=true]:text-oklch(0.577 0.245 27.325) dark:data-[invalid=true]:text-oklch(0.704 0.191 22.216)",
+  "group/field flex w-full gap-3 data-[invalid=true]:text-destructive",
   {
     variants: {
       orientation: {
@@ -115,7 +115,7 @@ function FieldLabel({
       className={cn(
         "group/field-label peer/field-label flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50",
         "has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col has-[>[data-slot=field]]:rounded-md has-[>[data-slot=field]]:border [&>*]:data-[slot=field]:p-4",
-        "has-data-[state=checked]:border-oklch(0.205 0 0) has-data-[state=checked]:bg-oklch(0.205 0 0)/5 dark:has-data-[state=checked]:bg-oklch(0.205 0 0)/10 dark:has-data-[state=checked]:border-oklch(0.922 0 0) dark:has-data-[state=checked]:bg-oklch(0.922 0 0)/5 dark:dark:has-data-[state=checked]:bg-oklch(0.922 0 0)/10",
+        "has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5",
         className
       )}
       {...props}
@@ -141,9 +141,9 @@ function FieldDescription({ className, ...props }: React.ComponentProps<"p">) {
     <p
       data-slot="field-description"
       className={cn(
-        "text-sm leading-normal font-normal text-oklch(0.556 0 0) group-has-[[data-orientation=horizontal]]/field:text-balance dark:text-oklch(0.708 0 0)",
+        "text-sm leading-normal font-normal text-muted-foreground group-has-[[data-orientation=horizontal]]/field:text-balance",
         "last:mt-0 nth-last-2:-mt-1 [[data-variant=legend]+&]:-mt-1.5",
-        "[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-oklch(0.205 0 0) dark:[&>a:hover]:text-oklch(0.922 0 0)",
+        "[&>a]:underline [&>a]:underline-offset-4 [&>a:hover]:text-foreground",
         className
       )}
       {...props}
@@ -171,7 +171,7 @@ function FieldSeparator({
       <Separator className="absolute inset-0 top-1/2" />
       {children && (
         <span
-          className="relative mx-auto block w-fit bg-oklch(1 0 0) px-2 text-oklch(0.556 0 0) dark:bg-oklch(0.145 0 0) dark:text-oklch(0.708 0 0)"
+          className="relative mx-auto block w-fit bg-background px-2 text-muted-foreground"
           data-slot="field-separator-content"
         >
           {children}
@@ -224,7 +224,7 @@ function FieldError({
     <div
       role="alert"
       data-slot="field-error"
-      className={cn("text-sm font-normal text-oklch(0.577 0.245 27.325) dark:text-oklch(0.704 0.191 22.216)", className)}
+      className={cn("text-sm font-normal text-destructive", className)}
       {...props}
     >
       {content}
