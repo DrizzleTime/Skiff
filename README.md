@@ -161,3 +161,7 @@ Commands that change disk state require `--yes`:
 - `files delete`
 - `agents clean`
 - `packages uninstall`
+
+## Friendly Links
+
+- [Linux.do](https://linux.do)
