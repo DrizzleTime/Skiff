@@ -40,6 +40,7 @@ import {
 } from "../components/ui/input-group";
 import { Input } from "../components/ui/input";
 import { Switch } from "../components/ui/switch";
+import { Textarea } from "../components/ui/textarea";
 import { useI18n } from "../lib/i18n";
 import { cn } from "../lib/utils";
 import type {
@@ -61,12 +62,12 @@ type LocalEnvEntry = EnvEntry & {
   original_value: string;
 };
 
-type SourceFilter = "all" | EnvEntrySource | `shell:${EnvShell}`;
+type SourceFilter = "saved-configs" | Exclude<EnvEntrySource, "current-process">;
 type KindFilter = "all" | EnvEntryKind;
 
 const envKeyPattern = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const tableGridClass =
-  "grid grid-cols-[70px_minmax(130px,180px)_minmax(220px,1fr)_136px_92px] items-center gap-3 max-[860px]:grid-cols-[62px_minmax(0,1fr)_76px]";
+  "grid grid-cols-[70px_minmax(110px,160px)_minmax(160px,1fr)_112px_86px] items-center gap-3 max-[1240px]:grid-cols-[70px_minmax(110px,150px)_minmax(140px,1fr)_104px] max-[860px]:grid-cols-[62px_minmax(0,1fr)_76px]";
 
 export function EnvironmentPage({
   onChromeChange,
@@ -78,7 +79,7 @@ export function EnvironmentPage({
   const [entries, setEntries] = useState<LocalEnvEntry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedShell, setSelectedShell] = useState<EnvShell | null>(null);
-  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("saved-configs");
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [onlyActionable, setOnlyActionable] = useState(false);
   const [query, setQuery] = useState("");
@@ -91,27 +92,21 @@ export function EnvironmentPage({
     void scanInventory();
   }, []);
 
+  const primaryEntries = useMemo(
+    () => entries.filter((entry) => !entry.deleted && entry.source !== "current-process"),
+    [entries],
+  );
+
   const visibleEntries = useMemo(() => {
     const keyword = query.trim().toLowerCase();
 
-    return entries.filter((entry) => {
-      if (entry.deleted) {
-        return false;
-      }
-
+    return primaryEntries.filter((entry) => {
       if (kindFilter !== "all" && entry.kind !== kindFilter) {
         return false;
       }
 
-      if (sourceFilter !== "all") {
-        if (sourceFilter.startsWith("shell:")) {
-          const shell = sourceFilter.replace("shell:", "") as EnvShell;
-          if (entry.shell !== shell) {
-            return false;
-          }
-        } else if (entry.source !== sourceFilter) {
-          return false;
-        }
+      if (sourceFilter !== "saved-configs" && entry.source !== sourceFilter) {
+        return false;
       }
 
       if (onlyActionable && !entry.editable && !entry.importable) {
@@ -122,19 +117,19 @@ export function EnvironmentPage({
         keyword.length === 0 ||
         entry.key.toLowerCase().includes(keyword) ||
         entry.value.toLowerCase().includes(keyword) ||
-        entry.source_label.toLowerCase().includes(keyword)
+        getEntrySourceLabel(entry, shells, t).toLowerCase().includes(keyword)
       );
     });
-  }, [entries, kindFilter, onlyActionable, query, sourceFilter]);
+  }, [kindFilter, onlyActionable, primaryEntries, query, shells, sourceFilter, t]);
 
   const selectedEntry =
-    entries.find((entry) => entry.id === selectedId && !entry.deleted) ??
+    visibleEntries.find((entry) => entry.id === selectedId && !entry.deleted) ??
     visibleEntries[0] ??
     null;
   const dirtyEntries = entries.filter((entry) => entry.dirty || entry.deleted || entry.isNew);
-  const variableCount = entries.filter((entry) => !entry.deleted && entry.kind === "variable").length;
-  const pathCount = entries.filter((entry) => !entry.deleted && entry.kind === "path").length;
-  const editableCount = entries.filter((entry) => !entry.deleted && entry.editable).length;
+  const variableCount = primaryEntries.filter((entry) => entry.kind === "variable").length;
+  const pathCount = primaryEntries.filter((entry) => entry.kind === "path").length;
+  const editableCount = primaryEntries.filter((entry) => entry.editable).length;
 
   const toolbarActions = useMemo(
     () =>
@@ -236,8 +231,10 @@ export function EnvironmentPage({
         result.shells.find((shell) => shell.is_default)?.shell ??
         result.shells[0]?.shell ??
         null;
+      const firstVisibleEntry =
+        nextEntries.find((entry) => entry.source !== "current-process") ?? null;
       setSelectedShell(nextShell);
-      setSelectedId(nextEntries[0]?.id ?? null);
+      setSelectedId(firstVisibleEntry?.id ?? null);
     } catch (scanError) {
       setError(String(scanError));
     } finally {
@@ -282,6 +279,9 @@ export function EnvironmentPage({
     };
 
     setEntries((current) => [entry, ...current]);
+    setSourceFilter("saved-configs");
+    setKindFilter(kind);
+    setQuery("");
     setSelectedId(id);
   }
 
@@ -311,6 +311,9 @@ export function EnvironmentPage({
     };
 
     setEntries((current) => [imported, ...current]);
+    setSourceFilter("saved-configs");
+    setKindFilter(entry.kind);
+    setQuery("");
     setSelectedId(id);
   }
 
@@ -375,6 +378,32 @@ export function EnvironmentPage({
       }
     }
 
+    const activeEntries = entries.filter((entry) => !entry.deleted);
+    const changedIds = new Set(changed.map((entry) => entry.id));
+    for (const entry of changed) {
+      if (entry.deleted) {
+        continue;
+      }
+
+      const duplicate = activeEntries.find(
+        (candidate) =>
+          candidate.id !== entry.id &&
+          getEntryWriteScope(candidate) === getEntryWriteScope(entry) &&
+          candidate.kind === entry.kind &&
+          (entry.kind === "variable"
+            ? candidate.key.trim().toLowerCase() === entry.key.trim().toLowerCase()
+            : candidate.value.trim() === entry.value.trim()),
+      );
+
+      if (!duplicate) {
+        continue;
+      }
+
+      toast.error(entry.kind === "variable" ? t("env.duplicateKey") : t("env.duplicatePath"));
+      setSelectedId(changedIds.has(entry.id) ? entry.id : duplicate.id);
+      return false;
+    }
+
     return true;
   }
 
@@ -411,9 +440,11 @@ export function EnvironmentPage({
   async function scanInventoryAfterSave() {
     const result = await invoke<EnvInventory>("scan_env_inventory");
     const nextEntries = result.entries.map(toLocalEntry);
+    const firstVisibleEntry =
+      nextEntries.find((entry) => entry.source !== "current-process") ?? null;
     setShells(result.shells);
     setEntries(nextEntries);
-    setSelectedId(nextEntries[0]?.id ?? null);
+    setSelectedId(firstVisibleEntry?.id ?? null);
   }
 
   function toChange(entry: LocalEnvEntry): EnvEntryChange {
@@ -433,73 +464,81 @@ export function EnvironmentPage({
   }
 
   const sourceFilters = buildSourceFilters(shells, t);
+  const dirtyTargets = buildDirtyTargets(dirtyEntries, shells, t);
 
   return (
     <PageSurface className="grid min-h-0 gap-3">
       {error ? <InlineMessage kind="error">{error}</InlineMessage> : null}
 
+      <ShellTargetSelector
+        selectedShell={selectedShell}
+        setSelectedShell={setSelectedShell}
+        shells={shells}
+      />
+
       <div className="grid min-h-0 grid-cols-[minmax(0,1fr)_318px] gap-3 max-[1080px]:grid-cols-1">
         <ResultPanel className="flex min-h-0 flex-col overflow-hidden">
-          <PanelTitle
-            actions={
-              <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-                <InputGroup className="h-8 w-[260px] rounded-md border-[#dddddd] bg-white px-2 shadow-none max-[720px]:w-full">
-                  <InputGroupAddon>
-                    <Search size={15} />
-                  </InputGroupAddon>
-                  <InputGroupInput
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder={t("env.searchPlaceholder")}
-                    value={query}
-                  />
-                </InputGroup>
-                <button
-                  className={cn(
-                    "inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold",
-                    onlyActionable
-                      ? "border-[#145c53] bg-[#edf7f4] text-[#145c53]"
-                      : "border-[#dddddd] bg-white text-[#58616d]",
-                  )}
-                  onClick={() => setOnlyActionable((value) => !value)}
-                  type="button"
-                >
-                  <Filter size={14} />
-                  {t("env.filter.actionable")}
-                </button>
-              </div>
-            }
-          >
+          <PanelTitle>
             <div>
               <strong>{t("env.inventory.title")}</strong>
               <span>{t("env.inventory.subtitle")}</span>
             </div>
           </PanelTitle>
 
-          <div className="flex min-h-[44px] flex-wrap items-center gap-2 border-b border-black/5 bg-white px-4 py-2">
-            {sourceFilters.map((filter) => (
-              <FilterButton
-                active={sourceFilter === filter.value}
-                key={filter.value}
-                label={filter.label}
-                onClick={() => setSourceFilter(filter.value)}
+          <div className="flex min-w-0 items-center gap-2 border-b border-black/5 bg-white px-4 py-2.5 max-[720px]:flex-col max-[720px]:items-stretch">
+            <InputGroup className="h-8 min-w-0 flex-1 rounded-md border-[#dddddd] bg-white px-2 shadow-none">
+              <InputGroupAddon>
+                <Search size={15} />
+              </InputGroupAddon>
+              <InputGroupInput
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={t("env.searchPlaceholder")}
+                value={query}
               />
-            ))}
-            <span className="mx-1 h-5 w-px bg-black/10" />
-            <FilterButton
-              active={kindFilter === "all"}
-              label={t("env.kind.all")}
-              onClick={() => setKindFilter("all")}
-            />
-            <FilterButton
-              active={kindFilter === "variable"}
-              label={t("env.kind.variable")}
-              onClick={() => setKindFilter("variable")}
-            />
-            <FilterButton
-              active={kindFilter === "path"}
-              label={t("env.kind.path")}
-              onClick={() => setKindFilter("path")}
-            />
+            </InputGroup>
+            <button
+              className={cn(
+                "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold",
+                onlyActionable
+                  ? "border-[#145c53] bg-[#edf7f4] text-[#145c53]"
+                  : "border-[#dddddd] bg-white text-[#58616d]",
+              )}
+              onClick={() => setOnlyActionable((value) => !value)}
+              type="button"
+            >
+              <Filter size={14} />
+              {t("env.filter.actionable")}
+            </button>
+          </div>
+
+          <div className="grid gap-2 border-b border-black/5 bg-white px-4 py-2.5">
+            <FilterGroup label={t("env.filter.source")}>
+              {sourceFilters.map((filter) => (
+                <FilterButton
+                  active={sourceFilter === filter.value}
+                  key={filter.value}
+                  label={filter.label}
+                  onClick={() => setSourceFilter(filter.value)}
+                />
+              ))}
+            </FilterGroup>
+            <FilterGroup label={t("env.filter.kind")}>
+              <FilterButton
+                active={kindFilter === "all"}
+                label={t("env.kind.all")}
+                onClick={() => setKindFilter("all")}
+              />
+              <FilterButton
+                active={kindFilter === "variable"}
+                label={t("env.kind.variable")}
+                onClick={() => setKindFilter("variable")}
+              />
+              <FilterButton
+                active={kindFilter === "path"}
+                label={t("env.kind.path")}
+                onClick={() => setKindFilter("path")}
+              />
+            </FilterGroup>
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden" role="table">
@@ -514,7 +553,9 @@ export function EnvironmentPage({
               <span role="columnheader">{t("env.table.name")}</span>
               <span role="columnheader">{t("env.table.value")}</span>
               <span role="columnheader">{t("env.table.source")}</span>
-              <span role="columnheader">{t("env.table.status")}</span>
+              <span className="max-[1240px]:hidden" role="columnheader">
+                {t("env.table.status")}
+              </span>
             </div>
 
             <div className="min-h-0 overflow-auto">
@@ -522,6 +563,7 @@ export function EnvironmentPage({
                 visibleEntries.map((entry) => (
                   <EnvRow
                     entry={entry}
+                    shells={shells}
                     key={entry.id}
                     onSelect={() => setSelectedId(entry.id)}
                     selected={selectedEntry?.id === entry.id}
@@ -543,8 +585,6 @@ export function EnvironmentPage({
           onDelete={deleteSelected}
           onImport={importEntry}
           onUpdate={updateSelected}
-          selectedShell={selectedShell}
-          setSelectedShell={setSelectedShell}
           shells={shells}
         />
       </div>
@@ -558,6 +598,20 @@ export function EnvironmentPage({
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[240px] overflow-auto rounded-lg border border-[#ecd9a8] bg-[#fffaf0] p-3">
+            <div className="mb-3 grid gap-2">
+              {dirtyTargets.map((target) => (
+                <div className="grid gap-1 rounded-md bg-white/70 px-3 py-2 text-xs text-[#6f4a0d]" key={target.id}>
+                  <strong>{target.title}</strong>
+                  <span className="break-all font-mono">{target.path}</span>
+                  {target.hint ? <span>{target.hint}</span> : null}
+                  {target.activation ? (
+                    <span className="break-all font-mono">
+                      {t("env.activation")}: {target.activation}
+                    </span>
+                  ) : null}
+                </div>
+              ))}
+            </div>
             {dirtyEntries.slice(0, 8).map((entry) => (
               <div
                 className="grid grid-cols-[78px_minmax(0,1fr)] gap-2 border-b border-[#ead9b1] py-1.5 text-sm last:border-b-0"
@@ -567,7 +621,7 @@ export function EnvironmentPage({
                   {entry.deleted ? t("env.change.delete") : t("env.change.upsert")}
                 </strong>
                 <span className="min-w-0 truncate text-[#77520f]">
-                  {entry.key} · {entry.source_label}
+                  {entry.key} · {getEntrySourceLabel(entry, shells, t)}
                 </span>
               </div>
             ))}
@@ -593,10 +647,12 @@ function EnvRow({
   entry,
   onSelect,
   selected,
+  shells,
 }: {
   entry: LocalEnvEntry;
   onSelect: () => void;
   selected: boolean;
+  shells: EnvShellConfig[];
 }) {
   const { t } = useI18n();
   const Icon = entry.kind === "path" ? ListTree : Variable;
@@ -624,9 +680,9 @@ function EnvRow({
         {entry.value || "-"}
       </code>
       <span className="truncate text-xs text-[#68717b] max-[860px]:hidden" role="cell">
-        {entry.source_label}
+        {getEntrySourceLabel(entry, shells, t)}
       </span>
-      <span className="justify-self-start" role="cell">
+      <span className="justify-self-start max-[1240px]:hidden" role="cell">
         <EntryStatus entry={entry} />
       </span>
     </button>
@@ -638,16 +694,12 @@ function EnvInspector({
   onDelete,
   onImport,
   onUpdate,
-  selectedShell,
-  setSelectedShell,
   shells,
 }: {
   entry: LocalEnvEntry | null;
   onDelete: () => void;
   onImport: (entry: LocalEnvEntry) => void;
   onUpdate: (patch: Partial<LocalEnvEntry>) => void;
-  selectedShell: EnvShell | null;
-  setSelectedShell: (shell: EnvShell) => void;
   shells: EnvShellConfig[];
 }) {
   const { t } = useI18n();
@@ -668,6 +720,7 @@ function EnvInspector({
   }
 
   const editable = entry.editable;
+  const sourceLabel = getEntrySourceLabel(entry, shells, t);
 
   return (
     <aside className="grid content-start gap-3">
@@ -692,59 +745,35 @@ function EnvInspector({
         >
           <div>
             <strong>{t("env.inspector.title")}</strong>
-            <span>{entry.source_label}</span>
+            <span>{sourceLabel}</span>
           </div>
         </PanelTitle>
 
         <div className="grid gap-3 p-3">
-          <div className="grid gap-1.5">
-            <label className="text-[11px] font-semibold uppercase text-[#7c8490]">
-              {t("env.variables.key")}
-            </label>
-            <Input
-              className="h-9 bg-white font-mono text-sm"
-              disabled={!editable || entry.kind === "path"}
-              onChange={(event) => onUpdate({ key: event.target.value })}
-              value={entry.key}
-            />
-          </div>
+          {editable ? (
+            <>
+              <div className="grid gap-1.5">
+                <label className="text-[11px] font-semibold uppercase text-[#7c8490]">
+                  {t("env.variables.key")}
+                </label>
+                <Input
+                  className="h-9 bg-white font-mono text-sm"
+                  disabled={entry.kind === "path"}
+                  onChange={(event) => onUpdate({ key: event.target.value })}
+                  value={entry.key}
+                />
+              </div>
 
-          <div className="grid gap-1.5">
-            <label className="text-[11px] font-semibold uppercase text-[#7c8490]">
-              {entry.kind === "path" ? t("env.path.title") : t("env.variables.value")}
-            </label>
-            <Input
-              className="h-9 bg-white font-mono text-sm"
-              disabled={!editable}
-              onChange={(event) => onUpdate({ value: event.target.value })}
-              value={entry.value}
-            />
-          </div>
+              <ValueField entry={entry} onUpdate={onUpdate} />
+            </>
+          ) : (
+            <>
+              <DetailLine label={t("env.variables.key")} value={entry.key} />
+              <ReadonlyValue label={entry.kind === "path" ? t("env.path.title") : t("env.variables.value")} value={entry.value} />
+            </>
+          )}
 
-          <div className="grid gap-1.5">
-            <span className="text-[11px] font-semibold uppercase text-[#7c8490]">
-              {t("env.targetShell")}
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {shells.map((shell) => (
-                <button
-                  className={cn(
-                    "h-7 rounded-md border px-2 text-xs font-semibold",
-                    selectedShell === shell.shell
-                      ? "border-[#145c53] bg-[#edf7f4] text-[#145c53]"
-                      : "border-[#dddddd] bg-white text-[#58616d]",
-                  )}
-                  key={shell.shell}
-                  onClick={() => setSelectedShell(shell.shell)}
-                  type="button"
-                >
-                  {shell.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <DetailLine label={t("env.table.source")} value={entry.source_label} />
+          <DetailLine label={t("env.table.source")} value={sourceLabel} />
           <DetailLine
             label={t("env.configPath")}
             value={entry.config_path ?? t("common.none")}
@@ -777,11 +806,127 @@ function EnvInspector({
   );
 }
 
+function ShellTargetSelector({
+  selectedShell,
+  setSelectedShell,
+  shells,
+}: {
+  selectedShell: EnvShell | null;
+  setSelectedShell: (shell: EnvShell) => void;
+  shells: EnvShellConfig[];
+}) {
+  const { t } = useI18n();
+  const selected = selectedShell
+    ? shells.find((shell) => shell.shell === selectedShell) ?? null
+    : null;
+
+  return (
+    <ResultPanel className="px-4 py-3">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <strong className="text-sm font-[680] text-[#14191f]">{t("env.targetShell")}</strong>
+            {selected?.is_default ? (
+              <span className="rounded-full bg-[#edf7f4] px-2 py-0.5 text-[11px] font-semibold text-[#145c53]">
+                {t("env.shell.default")}
+              </span>
+            ) : null}
+            {selected && !selected.available ? (
+              <span className="rounded-full bg-[#f2f3f4] px-2 py-0.5 text-[11px] font-semibold text-[#68717b]">
+                {t("env.shell.missing")}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 truncate text-xs text-[#68717b]">
+            {selected
+              ? t("env.targetShellDetail", {
+                  path: selected.config_path,
+                  state: selected.exists ? t("env.shell.fileExists") : t("env.shell.fileMissing"),
+                })
+              : t("env.noShells")}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {shells.map((shell) => (
+            <button
+              className={cn(
+                "h-8 rounded-md border px-3 text-xs font-semibold",
+                selectedShell === shell.shell
+                  ? "border-[#145c53] bg-[#edf7f4] text-[#145c53]"
+                  : "border-[#dddddd] bg-white text-[#58616d] hover:bg-[#f7f8f6]",
+              )}
+              key={shell.shell}
+              onClick={() => setSelectedShell(shell.shell)}
+              type="button"
+            >
+              {shell.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </ResultPanel>
+  );
+}
+
+function ValueField({
+  entry,
+  onUpdate,
+}: {
+  entry: LocalEnvEntry;
+  onUpdate: (patch: Partial<LocalEnvEntry>) => void;
+}) {
+  const { t } = useI18n();
+  const label = entry.kind === "path" ? t("env.path.title") : t("env.variables.value");
+
+  return (
+    <div className="grid gap-1.5">
+      <label className="text-[11px] font-semibold uppercase text-[#7c8490]">
+        {label}
+      </label>
+      <Textarea
+        className="min-h-[86px] resize-y bg-white font-mono text-sm leading-relaxed"
+        onChange={(event) => onUpdate({ value: event.target.value })}
+        value={entry.value}
+      />
+    </div>
+  );
+}
+
+function ReadonlyValue({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-1 rounded-lg bg-[#f7f8f6] px-3 py-2">
+      <span className="text-[11px] font-semibold uppercase text-[#7c8490]">{label}</span>
+      <code className="max-h-[140px] overflow-auto whitespace-pre-wrap break-all text-xs leading-relaxed text-[#44505c]">
+        {value || "-"}
+      </code>
+    </div>
+  );
+}
+
 function DetailLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1 rounded-lg bg-[#f7f8f6] px-3 py-2">
       <span className="text-[11px] font-semibold uppercase text-[#7c8490]">{label}</span>
       <span className="break-all font-mono text-xs text-[#44505c]">{value}</span>
+    </div>
+  );
+}
+
+function FilterGroup({
+  children,
+  label,
+}: {
+  children: ReactNode;
+  label: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="w-10 shrink-0 text-[11px] font-semibold uppercase text-[#8a929c]">
+        {label}
+      </span>
+      <div className="flex min-w-0 flex-1 gap-1.5 overflow-x-auto pb-0.5">
+        {children}
+      </div>
     </div>
   );
 }
@@ -840,7 +985,7 @@ function FilterButton({
   return (
     <button
       className={cn(
-        "h-7 rounded-md border px-2.5 text-xs font-semibold",
+        "h-7 shrink-0 whitespace-nowrap rounded-md border px-2.5 text-xs font-semibold",
         active
           ? "border-[#145c53] bg-[#edf7f4] text-[#145c53]"
           : "border-[#dddddd] bg-white text-[#58616d] hover:bg-[#f7f8f6]",
@@ -855,19 +1000,99 @@ function FilterButton({
 
 function buildSourceFilters(shells: EnvShellConfig[], t: ReturnType<typeof useI18n>["t"]) {
   const filters: Array<{ label: string; value: SourceFilter }> = [
-    { label: t("env.filter.all"), value: "all" },
-    { label: t("env.source.currentProcess"), value: "current-process" },
+    { label: t("env.filter.savedConfigs"), value: "saved-configs" },
     { label: t("env.source.shellConfig"), value: "shell-config" },
     { label: t("env.source.skiffBlock"), value: "skiff-block" },
   ];
-
-  for (const shell of shells) {
-    filters.push({ label: shell.label, value: `shell:${shell.shell}` });
-  }
 
   if (shells.some((shell) => shell.shell === "powershell" || shell.shell === "cmd")) {
     filters.push({ label: t("env.source.windowsUserEnv"), value: "windows-user-env" });
   }
 
   return filters;
+}
+
+function getEntrySourceLabel(
+  entry: EnvEntry,
+  shells: EnvShellConfig[],
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  const shell = entry.shell
+    ? shells.find((item) => item.shell === entry.shell)?.label ?? entry.shell
+    : null;
+
+  switch (entry.source) {
+    case "current-process":
+      return t("env.source.currentProcess");
+    case "shell-config":
+      return shell
+        ? t("env.source.shellConfigFor", { shell })
+        : t("env.source.shellConfig");
+    case "skiff-block":
+      return shell ? t("env.source.skiffBlockFor", { shell }) : t("env.source.skiffBlock");
+    case "windows-user-env":
+      return t("env.source.windowsUserEnv");
+  }
+}
+
+function getEntryWriteScope(entry: EnvEntry) {
+  if (entry.source === "windows-user-env") {
+    return "windows-user-env";
+  }
+
+  if (entry.shell) {
+    return `${entry.source}:${entry.shell}`;
+  }
+
+  return `${entry.source}:${entry.config_path ?? "process"}`;
+}
+
+function buildDirtyTargets(
+  entries: LocalEnvEntry[],
+  shells: EnvShellConfig[],
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  const targets = new Map<
+    string,
+    {
+      activation: string | null;
+      hint: string | null;
+      id: string;
+      path: string;
+      title: string;
+    }
+  >();
+
+  for (const entry of entries) {
+    if (entry.source === "current-process") {
+      continue;
+    }
+
+    if (entry.source === "windows-user-env") {
+      targets.set("windows-user-env", {
+        activation: null,
+        hint: t("env.registryChanged"),
+        id: "windows-user-env",
+        path: entry.config_path ?? "HKCU\\Environment",
+        title: t("env.source.windowsUserEnv"),
+      });
+      continue;
+    }
+
+    const shellConfig = entry.shell
+      ? shells.find((shell) => shell.shell === entry.shell)
+      : null;
+    const id = `${entry.source}:${entry.shell ?? entry.config_path ?? entry.id}`;
+    targets.set(id, {
+      activation: shellConfig?.activation_command ?? null,
+      hint: shellConfig?.restart_hint ?? null,
+      id,
+      path: entry.config_path ?? shellConfig?.config_path ?? t("common.none"),
+      title: shellConfig
+        ? t("env.confirm.target", { shell: shellConfig.label })
+        : getEntrySourceLabel(entry, shells, t),
+    });
+  }
+
+  return [...targets.values()];
 }
