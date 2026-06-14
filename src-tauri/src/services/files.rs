@@ -12,29 +12,78 @@ use std::{
     time::UNIX_EPOCH,
 };
 
-pub fn scan_roots(home: &Path) -> Vec<PathBuf> {
-    let candidates = [
-        "Desktop",
-        "Documents",
-        "Downloads",
-        "Music",
-        "Pictures",
-        "Videos",
-        "桌面",
-        "文档",
-        "下载",
-        "音乐",
-        "图片",
-        "视频",
-    ];
-    let mut roots = Vec::new();
+pub fn scan_roots(home: &Path, configured_paths: &[String]) -> Vec<PathBuf> {
+    if configured_paths.is_empty() {
+        return default_scan_roots(home);
+    }
 
-    for name in candidates {
-        let path = home.join(name);
-        if path.is_dir() && !roots.iter().any(|root: &PathBuf| root == &path) {
-            roots.push(path);
+    configured_scan_roots(home, configured_paths)
+}
+
+pub fn normalize_scan_paths(
+    home: &Path,
+    configured_paths: &[String],
+) -> Result<Vec<String>, String> {
+    let home = home
+        .canonicalize()
+        .map_err(|err| format!("无法校验 HOME 目录：{err}"))?;
+    let mut paths = Vec::new();
+
+    for path_text in configured_paths {
+        let path = resolve_scan_path(&home, path_text)?;
+        if !paths.iter().any(|item| item == &path) {
+            paths.push(path);
         }
     }
+
+    Ok(paths
+        .into_iter()
+        .map(|path| path.display().to_string())
+        .collect())
+}
+
+fn default_scan_roots(home: &Path) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+
+    push_existing_dirs(
+        &mut roots,
+        home,
+        &[
+            "Desktop",
+            "Documents",
+            "Downloads",
+            "Music",
+            "Pictures",
+            "Videos",
+            "Movies",
+            "Public",
+            "Templates",
+            "Code",
+            "Projects",
+            "Workspace",
+            "Developer",
+            "OneDrive",
+            "Dropbox",
+            "Google Drive",
+            "iCloudDrive",
+            "iCloud Drive",
+            "桌面",
+            "文档",
+            "下载",
+            "音乐",
+            "图片",
+            "视频",
+            "影片",
+            "电影",
+            "公共",
+            "模板",
+            "代码",
+            "项目",
+        ],
+    );
+
+    push_platform_scan_roots(&mut roots, home);
+    push_cloud_storage_roots(&mut roots, home);
 
     if roots.is_empty() {
         roots.push(home.to_path_buf());
@@ -43,13 +92,227 @@ pub fn scan_roots(home: &Path) -> Vec<PathBuf> {
     roots
 }
 
+fn configured_scan_roots(home: &Path, configured_paths: &[String]) -> Vec<PathBuf> {
+    let Ok(home) = home.canonicalize() else {
+        return Vec::new();
+    };
+    let mut roots = Vec::new();
+
+    for path_text in configured_paths {
+        if let Ok(path) = resolve_scan_path(&home, path_text) {
+            push_scan_root(&mut roots, path);
+        }
+    }
+
+    roots
+}
+
+fn push_existing_dirs(roots: &mut Vec<PathBuf>, home: &Path, candidates: &[&str]) {
+    for name in candidates {
+        push_scan_root(roots, home.join(name));
+    }
+}
+
+fn push_scan_root(roots: &mut Vec<PathBuf>, path: PathBuf) {
+    if path.is_dir() && !roots.iter().any(|root| root == &path) {
+        roots.push(path);
+    }
+}
+
+fn resolve_scan_path(home: &Path, path_text: &str) -> Result<PathBuf, String> {
+    let path_text = path_text.trim();
+    if path_text.is_empty() {
+        return Err("扫描路径不能为空。".to_string());
+    }
+
+    let path = if path_text == "~" {
+        home.to_path_buf()
+    } else if let Some(rest) = path_text
+        .strip_prefix("~/")
+        .or_else(|| path_text.strip_prefix("~\\"))
+    {
+        home.join(rest)
+    } else {
+        let path = PathBuf::from(path_text);
+        if path.is_absolute() {
+            path
+        } else {
+            home.join(path)
+        }
+    };
+
+    let path = path
+        .canonicalize()
+        .map_err(|err| format!("扫描路径不存在或不可访问：{path_text}（{err}）"))?;
+    if !path.is_dir() {
+        return Err(format!("扫描路径不是目录：{path_text}"));
+    }
+    if !path.starts_with(home) {
+        return Err(format!("扫描路径必须位于当前用户目录内：{path_text}"));
+    }
+
+    Ok(path)
+}
+
+#[cfg(target_os = "windows")]
+fn push_platform_scan_roots(roots: &mut Vec<PathBuf>, home: &Path) {
+    push_existing_dirs(
+        roots,
+        home,
+        &[
+            "3D Objects",
+            "Contacts",
+            "Favorites",
+            "Links",
+            "Saved Games",
+            "Searches",
+            "AppData/Local",
+            "AppData/LocalLow",
+            "AppData/Roaming",
+        ],
+    );
+}
+
+#[cfg(target_os = "macos")]
+fn push_platform_scan_roots(roots: &mut Vec<PathBuf>, home: &Path) {
+    push_existing_dirs(
+        roots,
+        home,
+        &[
+            "Applications",
+            "Library/Application Support",
+            "Library/Caches",
+            "Library/CloudStorage",
+            "Library/Containers",
+            "Library/Developer",
+            "Library/Group Containers",
+            "Library/Mobile Documents",
+        ],
+    );
+}
+
+#[cfg(target_os = "linux")]
+fn push_platform_scan_roots(roots: &mut Vec<PathBuf>, home: &Path) {
+    push_existing_dirs(
+        roots,
+        home,
+        &[
+            ".cache",
+            ".config",
+            ".local/share",
+            ".local/state",
+            ".var/app",
+            "snap",
+        ],
+    );
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+fn push_platform_scan_roots(_roots: &mut Vec<PathBuf>, _home: &Path) {}
+
+fn push_cloud_storage_roots(roots: &mut Vec<PathBuf>, home: &Path) {
+    let Ok(entries) = fs::read_dir(home) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+
+        let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+            continue;
+        };
+
+        if is_cloud_storage_dir_name(name) {
+            push_scan_root(roots, path);
+        }
+    }
+}
+
+fn is_cloud_storage_dir_name(name: &str) -> bool {
+    let lower_name = name.to_lowercase();
+
+    lower_name == "dropbox"
+        || lower_name == "box"
+        || lower_name == "icloud drive"
+        || lower_name == "iclouddrive"
+        || lower_name == "synologydrive"
+        || lower_name == "google drive"
+        || lower_name.starts_with("onedrive")
+        || lower_name.starts_with("google drive")
+}
+
+fn should_skip_scan_dir(path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+        return false;
+    };
+
+    name.starts_with('.')
+        || matches!(
+            name,
+            "node_modules" | "target" | "dist" | "build" | ".git" | ".cache"
+        )
+}
+
+#[cfg(test)]
+fn platform_scan_root_candidates() -> &'static [&'static str] {
+    #[cfg(target_os = "windows")]
+    {
+        &[
+            "3D Objects",
+            "Contacts",
+            "Favorites",
+            "Links",
+            "Saved Games",
+            "Searches",
+            "AppData/Local",
+            "AppData/LocalLow",
+            "AppData/Roaming",
+        ]
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        &[
+            "Applications",
+            "Library/Application Support",
+            "Library/Caches",
+            "Library/CloudStorage",
+            "Library/Containers",
+            "Library/Developer",
+            "Library/Group Containers",
+            "Library/Mobile Documents",
+        ]
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        &[
+            ".cache",
+            ".config",
+            ".local/share",
+            ".local/state",
+            ".var/app",
+            "snap",
+        ]
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
+    {
+        &[]
+    }
+}
+
 pub fn find_large_files(
     home: &Path,
     min_size: u64,
     limit: usize,
+    configured_paths: &[String],
 ) -> Result<LargeFileScanResult, String> {
-    let (mut files, scanned_files) =
-        collect_scan_files(home, min_size).map_err(|err| format!("扫描大文件失败：{err}"))?;
+    let (mut files, scanned_files) = collect_scan_files(home, min_size, configured_paths)
+        .map_err(|err| format!("扫描大文件失败：{err}"))?;
 
     files.sort_by(|left, right| right.size.cmp(&left.size));
     files.truncate(limit);
@@ -69,9 +332,10 @@ pub fn find_duplicate_files(
     home: &Path,
     min_size: u64,
     group_limit: usize,
+    configured_paths: &[String],
 ) -> Result<DuplicateFileScanResult, String> {
-    let (files, scanned_files) =
-        collect_scan_files(home, min_size).map_err(|err| format!("扫描重复文件失败：{err}"))?;
+    let (files, scanned_files) = collect_scan_files(home, min_size, configured_paths)
+        .map_err(|err| format!("扫描重复文件失败：{err}"))?;
     let mut by_size: HashMap<u64, Vec<FileItem>> = HashMap::new();
 
     for file in files {
@@ -160,11 +424,15 @@ pub fn delete_files(home: &Path, paths: &[String]) -> Result<DeleteFilesResult, 
     })
 }
 
-fn collect_scan_files(home: &Path, min_size: u64) -> io::Result<(Vec<FileItem>, u64)> {
+fn collect_scan_files(
+    home: &Path,
+    min_size: u64,
+    configured_paths: &[String],
+) -> io::Result<(Vec<FileItem>, u64)> {
     let mut files = Vec::new();
     let mut scanned_files = 0;
 
-    for root in scan_roots(home) {
+    for root in scan_roots(home, configured_paths) {
         collect_scan_files_from_dir(&root, min_size, &mut files, &mut scanned_files)?;
     }
 
@@ -210,18 +478,6 @@ fn collect_scan_files_from_dir(
     }
 
     Ok(())
-}
-
-fn should_skip_scan_dir(path: &Path) -> bool {
-    let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
-        return false;
-    };
-
-    name.starts_with('.')
-        || matches!(
-            name,
-            "node_modules" | "target" | "dist" | "build" | ".git" | ".cache"
-        )
 }
 
 fn file_item_from_path(path: &Path, metadata: &fs::Metadata) -> FileItem {
@@ -290,12 +546,103 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
+    fn scan_roots_falls_back_to_home_when_no_candidates_exist() {
+        let dir = tempdir().expect("tempdir");
+
+        let roots = scan_roots(dir.path(), &[]);
+
+        assert_eq!(roots, vec![dir.path().to_path_buf()]);
+    }
+
+    #[test]
+    fn scan_roots_includes_common_platform_and_cloud_dirs() {
+        let dir = tempdir().expect("tempdir");
+        fs::create_dir(dir.path().join("Documents")).expect("create documents");
+        fs::create_dir(dir.path().join("Projects")).expect("create projects");
+        fs::create_dir(dir.path().join("OneDrive - Work")).expect("create onedrive");
+
+        for candidate in platform_scan_root_candidates() {
+            fs::create_dir_all(dir.path().join(candidate)).expect("create platform candidate");
+        }
+
+        let roots = scan_roots(dir.path(), &[]);
+
+        assert!(roots.contains(&dir.path().join("Documents")));
+        assert!(roots.contains(&dir.path().join("Projects")));
+        assert!(roots.contains(&dir.path().join("OneDrive - Work")));
+        for candidate in platform_scan_root_candidates() {
+            assert!(roots.contains(&dir.path().join(candidate)));
+        }
+    }
+
+    #[test]
+    fn large_file_scan_reads_explicit_platform_roots() {
+        let Some(candidate) = platform_scan_root_candidates().first() else {
+            return;
+        };
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path().join(candidate);
+        fs::create_dir_all(&root).expect("create platform root");
+        fs::write(root.join("large.txt"), b"large-enough").expect("write large");
+
+        let result = find_large_files(dir.path(), 8, 20, &[]).expect("scan large files");
+
+        assert_eq!(result.total_files, 1);
+        assert_eq!(result.items[0].name, "large.txt");
+    }
+
+    #[test]
+    fn custom_scan_roots_replace_default_roots() {
+        let dir = tempdir().expect("tempdir");
+        let documents = dir.path().join("Documents");
+        let projects = dir.path().join("Projects");
+        fs::create_dir(&documents).expect("create documents");
+        fs::create_dir(&projects).expect("create projects");
+        fs::write(documents.join("document.txt"), b"large-enough").expect("write document");
+        fs::write(projects.join("project.txt"), b"large-enough").expect("write project");
+
+        let configured_paths = vec!["Projects".to_string()];
+        let result =
+            find_large_files(dir.path(), 8, 20, &configured_paths).expect("scan large files");
+
+        assert_eq!(result.total_files, 1);
+        assert_eq!(result.items[0].name, "project.txt");
+    }
+
+    #[test]
+    fn normalize_scan_paths_accepts_home_relative_paths_and_deduplicates() {
+        let dir = tempdir().expect("tempdir");
+        fs::create_dir(dir.path().join("Downloads")).expect("create downloads");
+
+        let paths = normalize_scan_paths(
+            dir.path(),
+            &["~/Downloads".to_string(), "Downloads".to_string()],
+        )
+        .expect("normalize paths");
+
+        assert_eq!(
+            paths,
+            vec![dir.path().join("Downloads").display().to_string()]
+        );
+    }
+
+    #[test]
+    fn normalize_scan_paths_rejects_paths_outside_home() {
+        let home = tempdir().expect("home");
+        let outside = tempdir().expect("outside");
+
+        let result = normalize_scan_paths(home.path(), &[outside.path().display().to_string()]);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn large_file_scan_filters_below_min_size_while_counting_all_files() {
         let dir = tempdir().expect("tempdir");
         fs::write(dir.path().join("small.txt"), b"tiny").expect("write small");
         fs::write(dir.path().join("large.txt"), b"large-enough").expect("write large");
 
-        let result = find_large_files(dir.path(), 8, 20).expect("scan large files");
+        let result = find_large_files(dir.path(), 8, 20, &[]).expect("scan large files");
 
         assert_eq!(result.scanned_files, 2);
         assert_eq!(result.total_files, 1);

@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Copy, FileText, Search, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/button";
+import { Checkbox } from "../components/ui/checkbox";
 import { ActivityPanel } from "../components/cleanup/ActivityPanel";
-import { FileRows } from "../components/cleanup/FileRows";
+import { CleanupEmptyState } from "../components/cleanup/CleanupEmptyState";
 import {
   InlineMessage,
   PanelTitle,
@@ -13,7 +14,7 @@ import {
   ToolStrip,
 } from "../components/cleanup/PageChrome";
 import { StatCard } from "../components/cleanup/StatCard";
-import { formatCount, formatSize } from "../lib/format";
+import { formatCount, formatDate, formatSize } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import type {
   DeleteFilesResult,
@@ -51,7 +52,11 @@ export function DuplicateFilesPage({
     [files, selectedPathSet],
   );
   const reclaimableSize = useMemo(
-    () => groups.reduce((sum, group) => sum + group.reclaimable_size, 0),
+    () =>
+      groups.reduce(
+        (sum, group) => sum + group.size * Math.max(group.files.length - 1, 0),
+        0,
+      ),
     [groups],
   );
   const busy = scanning || deleting;
@@ -95,10 +100,17 @@ export function DuplicateFilesPage({
       );
       setGroups((current) =>
         current
-          .map((group) => ({
-            ...group,
-            files: group.files.filter((file) => !deleted.has(file.path)),
-          }))
+          .map((group) => {
+            const files = group.files.filter((file) => !deleted.has(file.path));
+            const count = files.length;
+
+            return {
+              ...group,
+              count,
+              files,
+              reclaimable_size: group.size * Math.max(count - 1, 0),
+            };
+          })
           .filter((group) => group.files.length > 1),
       );
       setSelectedPaths([]);
@@ -119,9 +131,27 @@ export function DuplicateFilesPage({
       return;
     }
 
-    setSelectedPaths((current) =>
-      current.includes(path) ? current.filter((item) => item !== path) : [...current, path],
-    );
+    setSelectedPaths((current) => {
+      if (current.includes(path)) {
+        return current.filter((item) => item !== path);
+      }
+
+      const group = groups.find((item) =>
+        item.files.some((file) => file.path === path),
+      );
+      if (!group) {
+        return [...current, path];
+      }
+
+      const selectedInGroup = group.files.filter((file) =>
+        current.includes(file.path),
+      ).length;
+      if (selectedInGroup >= group.files.length - 1) {
+        return current;
+      }
+
+      return [...current, path];
+    });
   }
 
   return (
@@ -175,8 +205,8 @@ export function DuplicateFilesPage({
             title={scanning ? t("duplicates.activity.scanTitle") : t("duplicates.activity.deleteTitle")}
           />
         ) : (
-          <FileRows
-            files={files}
+          <DuplicateGroupRows
+            groups={groups}
             onToggleFile={toggleFile}
             selectedPathSet={selectedPathSet}
           />
@@ -194,4 +224,103 @@ function defaultDuplicateSelection(groups: DuplicateFileGroup[]) {
   }
 
   return selected;
+}
+
+function DuplicateGroupRows({
+  groups,
+  selectedPathSet,
+  onToggleFile,
+}: {
+  groups: DuplicateFileGroup[];
+  selectedPathSet: Set<string>;
+  onToggleFile: (path: string) => void;
+}) {
+  const { locale, t } = useI18n();
+
+  if (groups.length === 0) {
+    return (
+      <CleanupEmptyState
+        description={t("empty.file.description")}
+        icon={FileText}
+        title={t("empty.file.title")}
+      />
+    );
+  }
+
+  return (
+    <div className="grid">
+      {groups.map((group) => {
+        const selectedInGroup = group.files.filter((file) =>
+          selectedPathSet.has(file.path),
+        ).length;
+
+        return (
+          <section className="border-b border-[#eeeeee]" key={group.id}>
+            <div className="grid min-h-[44px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 bg-[#fbfbfa] px-5 py-2 max-[720px]:grid-cols-1 max-[720px]:px-4">
+              <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-[680] text-[#141414]">
+                {t("duplicates.groupTitle", {
+                  count: formatCount(group.files.length, locale),
+                })}
+              </strong>
+              <span className="text-xs text-[#68717d]">
+                {t("duplicates.groupDetail", {
+                  size: formatSize(group.size),
+                  reclaimable: formatSize(
+                    group.size * Math.max(group.files.length - 1, 0),
+                  ),
+                })}
+              </span>
+            </div>
+            <div className="grid">
+              {group.files.map((file) => {
+                const checked = selectedPathSet.has(file.path);
+                const cannotSelect =
+                  !checked && selectedInGroup >= group.files.length - 1;
+
+                return (
+                  <button
+                    className="grid min-h-[54px] w-full grid-cols-[30px_minmax(0,1fr)_96px_72px_30px] items-center gap-3 border-0 border-t border-[#f1f1f1] bg-white px-5 py-2 text-left [content-visibility:auto] [contain-intrinsic-size:54px] hover:bg-[#fafafa] disabled:cursor-not-allowed disabled:bg-white disabled:opacity-70 max-[720px]:grid-cols-[34px_minmax(0,1fr)_30px] max-[720px]:px-4"
+                    disabled={cannotSelect}
+                    key={file.path}
+                    onClick={() => onToggleFile(file.path)}
+                    type="button"
+                  >
+                    <span className="grid size-7 place-items-center rounded-md bg-[#f6f6f6] text-[#111111]">
+                      <FileText size={18} strokeWidth={1.9} />
+                    </span>
+                    <span className="grid min-w-0 gap-1">
+                      <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-bold text-[#141414]">
+                        {file.name}
+                      </strong>
+                      <code className="overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-[#777777]">
+                        {file.path}
+                      </code>
+                    </span>
+                    <span className="grid justify-items-end gap-1 max-[720px]:hidden">
+                      <strong className="text-sm text-[#101010]">
+                        {formatSize(file.size)}
+                      </strong>
+                      <span className="text-[11px] text-[#777777]">
+                        {formatDate(file.modified, locale, t("common.unknownTime"))}
+                      </span>
+                    </span>
+                    <span className="text-right text-xs font-medium text-[#68717d] max-[720px]:hidden">
+                      {checked ? t("duplicates.deleteFile") : t("duplicates.keepFile")}
+                    </span>
+                    <Checkbox
+                      aria-label={t("file.select", { name: file.name })}
+                      checked={checked}
+                      disabled={cannotSelect}
+                      onChange={() => onToggleFile(file.path)}
+                      onClick={(event) => event.stopPropagation()}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
 }

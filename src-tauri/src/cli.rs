@@ -101,7 +101,8 @@ fn parse_global_args(args: Vec<String>) -> CliResult<ParsedArgs> {
 
 fn run_info(options: &GlobalOptions) -> CliResult<i32> {
     let home = resolve_home(options)?;
-    let scan_roots = scan_roots(&home)
+    let settings = read_settings(&home).unwrap_or_else(|_| AppSettings::default());
+    let scan_roots = scan_roots(&home, &settings.file_scan_paths)
         .into_iter()
         .map(|path| path.display().to_string())
         .collect();
@@ -216,7 +217,8 @@ fn run_files_command(options: &GlobalOptions, args: &[String]) -> CliResult<i32>
             let settings = read_settings(&home).unwrap_or_else(|_| AppSettings::default());
             let min_size = params.min_size.unwrap_or(settings.large_file_min_size);
             let limit = params.limit.unwrap_or(DEFAULT_LARGE_FILE_LIMIT);
-            let result = find_large_files(&home, min_size, limit).map_err(|err| fail(1, err))?;
+            let result = find_large_files(&home, min_size, limit, &settings.file_scan_paths)
+                .map_err(|err| fail(1, err))?;
 
             if options.json {
                 print_json(&result)?;
@@ -241,7 +243,8 @@ fn run_files_command(options: &GlobalOptions, args: &[String]) -> CliResult<i32>
             let min_size = params.min_size.unwrap_or(settings.duplicate_min_size);
             let group_limit = params.group_limit.unwrap_or(DEFAULT_DUPLICATE_GROUP_LIMIT);
             let result =
-                find_duplicate_files(&home, min_size, group_limit).map_err(|err| fail(1, err))?;
+                find_duplicate_files(&home, min_size, group_limit, &settings.file_scan_paths)
+                    .map_err(|err| fail(1, err))?;
 
             if options.json {
                 print_json(&result)?;

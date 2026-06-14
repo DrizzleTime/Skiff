@@ -9,6 +9,7 @@ pub const DEFAULT_CLOSE_TO_TRAY: bool = true;
 pub struct AppSettings {
     pub large_file_min_size: u64,
     pub duplicate_min_size: u64,
+    pub file_scan_paths: Vec<String>,
     pub close_to_tray: bool,
     pub language: LanguagePreference,
 }
@@ -29,6 +30,7 @@ impl Default for AppSettings {
         Self {
             large_file_min_size: DEFAULT_LARGE_FILE_MIN_SIZE,
             duplicate_min_size: DEFAULT_DUPLICATE_MIN_SIZE,
+            file_scan_paths: Vec::new(),
             close_to_tray: DEFAULT_CLOSE_TO_TRAY,
             language: LanguagePreference::System,
         }

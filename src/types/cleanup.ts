@@ -124,6 +124,7 @@ export type DeleteFilesResult = {
 export type AppSettings = {
   large_file_min_size: number;
   duplicate_min_size: number;
+  file_scan_paths: string[];
   close_to_tray: boolean;
   language: LanguagePreference;
 };

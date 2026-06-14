@@ -21,7 +21,9 @@ use crate::{
             save_env_inventory as save_env_inventory_items,
             scan_env_inventory as scan_env_inventory_items,
         },
-        files::{delete_files, find_duplicate_files, find_large_files, scan_roots},
+        files::{
+            delete_files, find_duplicate_files, find_large_files, normalize_scan_paths, scan_roots,
+        },
         packages::{
             load_package_icons as load_package_icon_items, scan_installed_packages_without_icons,
             uninstall_selected_packages,
@@ -84,9 +86,13 @@ pub async fn scan_large_files(
         .and_then(|value| value.limit)
         .unwrap_or(DEFAULT_LARGE_FILE_LIMIT);
 
-    tauri::async_runtime::spawn_blocking(move || find_large_files(&home, min_size, limit))
-        .await
-        .map_err(|err| format!("大文件扫描任务失败：{err}"))?
+    let file_scan_paths = settings.file_scan_paths;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        find_large_files(&home, min_size, limit, &file_scan_paths)
+    })
+    .await
+    .map_err(|err| format!("大文件扫描任务失败：{err}"))?
 }
 
 #[tauri::command]
@@ -104,9 +110,13 @@ pub async fn scan_duplicate_files(
         .and_then(|value| value.group_limit)
         .unwrap_or(DEFAULT_DUPLICATE_GROUP_LIMIT);
 
-    tauri::async_runtime::spawn_blocking(move || find_duplicate_files(&home, min_size, group_limit))
-        .await
-        .map_err(|err| format!("重复文件扫描任务失败：{err}"))?
+    let file_scan_paths = settings.file_scan_paths;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        find_duplicate_files(&home, min_size, group_limit, &file_scan_paths)
+    })
+    .await
+    .map_err(|err| format!("重复文件扫描任务失败：{err}"))?
 }
 
 #[tauri::command]
@@ -126,6 +136,8 @@ pub fn get_settings() -> Result<AppSettings, String> {
 #[tauri::command]
 pub fn save_settings(app: AppHandle, settings: AppSettings) -> Result<AppSettings, String> {
     let home = home_dir()?;
+    let mut settings = settings;
+    settings.file_scan_paths = normalize_scan_paths(&home, &settings.file_scan_paths)?;
     write_settings(&home, &settings)?;
     crate::tray::refresh_tray_menu(&app, settings.language)
         .map_err(|err| format!("刷新托盘菜单失败：{err}"))?;
@@ -153,7 +165,8 @@ pub async fn save_env_inventory(
 #[tauri::command]
 pub fn get_app_info() -> Result<AppInfo, String> {
     let home = home_dir()?;
-    let scan_roots = scan_roots(&home)
+    let settings = read_settings(&home).unwrap_or_default();
+    let scan_roots = scan_roots(&home, &settings.file_scan_paths)
         .into_iter()
         .map(|path| path.display().to_string())
         .collect();
