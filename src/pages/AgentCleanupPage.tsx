@@ -30,6 +30,7 @@ import type {
 
 const agentFallbackLabels: Record<string, string> = {
   codex: "Codex",
+  claude: "Claude Code",
 };
 
 function waitForNextFrame() {
