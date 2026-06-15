@@ -28,11 +28,14 @@ import type {
   AgentThreadScanResult,
   AppInfo,
   CleanupProgressPayload,
+  CleanupRunMode,
+  CleanupRunRecord,
   CleanupRunResult,
   CleanupScanResult,
   CleanupTarget,
   DeleteFilesResult,
   DiskStatus,
+  AppSettings,
   PackageScanResult,
   PackageUninstallResult,
   RunState,
@@ -40,6 +43,8 @@ import type {
 import "./App.css";
 
 const CLEANUP_PROGRESS_EVENT = "cleanup-progress";
+const HISTORY_STORAGE_KEY = "skiff.cleanupHistory.v1";
+const MAX_HISTORY_RECORDS = 50;
 
 type PageChromeConfig = {
   actions: ReactNode;
@@ -71,6 +76,42 @@ function shouldShowCleanupTarget(target: CleanupTarget) {
   return target.cleanable || Boolean(target.error) || target.size > 0 || target.files > 0;
 }
 
+function readCleanupHistory(): CleanupRunRecord[] {
+  try {
+    const raw = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const records = JSON.parse(raw);
+    if (!Array.isArray(records)) {
+      return [];
+    }
+
+    return records
+      .filter((record): record is CleanupRunRecord =>
+        typeof record?.id === "string" &&
+        typeof record?.created_at === "number" &&
+        ["clean", "trash", "uninstall", "agent"].includes(record?.mode) &&
+        Array.isArray(record?.items) &&
+        typeof record?.released_size === "number" &&
+        typeof record?.deleted_files === "number" &&
+        typeof record?.failed_count === "number",
+      )
+      .slice(0, MAX_HISTORY_RECORDS);
+  } catch {
+    return [];
+  }
+}
+
+function persistCleanupHistory(records: CleanupRunRecord[]) {
+  try {
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(records));
+  } catch {
+    // History is useful for audit, but cleanup should not fail because local storage is unavailable.
+  }
+}
+
 function App() {
   const { locale, t } = useI18n();
   const [activeView, setActiveView] = useState<ActiveView>("overview");
@@ -82,13 +123,14 @@ function App() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [diskStatus, setDiskStatus] = useState<DiskStatus | null>(null);
   const [diskError, setDiskError] = useState<string | null>(null);
-  const [lastRun, setLastRun] = useState<CleanupRunResult | null>(null);
-  const [lastCleanupAt, setLastCleanupAt] = useState<Date | null>(null);
+  const [historyRecords, setHistoryRecords] =
+    useState<CleanupRunRecord[]>(readCleanupHistory);
   const [agentCleanupSize, setAgentCleanupSize] = useState(0);
   const [applicationCleanupSize, setApplicationCleanupSize] = useState(0);
   const [agentScanResult, setAgentScanResult] = useState<AgentThreadScanResult | null>(null);
   const [packageScanResult, setPackageScanResult] = useState<PackageScanResult | null>(null);
   const [packageScanIncludesSystem, setPackageScanIncludesSystem] = useState(false);
+  const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(false);
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [appPlatform, setAppPlatform] = useState<AppInfo["platform"]>(getInitialAppPlatform);
   const [pageChrome, setPageChrome] = useState<PageChromeConfig>(null);
@@ -99,6 +141,7 @@ function App() {
   useEffect(() => {
     void refreshDiskStatus();
     void refreshAppInfo();
+    void refreshAppSettings();
   }, []);
 
   useEffect(() => {
@@ -173,6 +216,8 @@ function App() {
   const cleanupView = isJunkCleanupView(activeView);
   const showInspector = cleanupView;
   const canClean = cleanupView && selectedIds.length > 0 && !busy && runState !== "idle";
+  const lastRun = historyRecords[0] ?? null;
+  const lastCleanupAt = lastRun ? new Date(lastRun.created_at) : null;
 
   async function refreshDiskStatus() {
     try {
@@ -191,6 +236,15 @@ function App() {
       setAppPlatform(result.platform);
     } catch {
       setAppVersion(null);
+    }
+  }
+
+  async function refreshAppSettings() {
+    try {
+      const settings = await invoke<AppSettings>("get_settings");
+      setShowAdvancedFeatures(settings.show_advanced_features);
+    } catch {
+      setShowAdvancedFeatures(false);
     }
   }
 
@@ -231,6 +285,21 @@ function App() {
     setRunState("ready");
   }
 
+  function recordRun(result: CleanupRunResult, mode: CleanupRunMode) {
+    const record: CleanupRunRecord = {
+      ...result,
+      id: `${Date.now()}-${mode}`,
+      mode,
+      created_at: Date.now(),
+    };
+
+    setHistoryRecords((current) => {
+      const next = [record, ...current].slice(0, MAX_HISTORY_RECORDS);
+      persistCleanupHistory(next);
+      return next;
+    });
+  }
+
   async function confirmCleanup() {
     if (selectedIds.length === 0) {
       return;
@@ -245,7 +314,7 @@ function App() {
       const result = await invoke<CleanupRunResult>("run_cleanup", {
         request: { ids: selectedIds },
       });
-      setLastRun(result);
+      recordRun(result, "clean");
       setTargets((current) =>
         current.map((target) => {
           const itemResult = result.items.find((item) => item.id === target.id);
@@ -266,7 +335,6 @@ function App() {
       setRunState(result.failed_count > 0 ? "error" : "done");
       setProgress(100);
       setActiveView("history");
-      setLastCleanupAt(new Date());
       await refreshDiskStatus();
 
       if (result.failed_count > 0) {
@@ -342,8 +410,7 @@ function App() {
       failed_count: result.failed_count,
     };
 
-    setLastRun(runResult);
-    setLastCleanupAt(new Date());
+    recordRun(runResult, "trash");
     setActiveView("history");
     void refreshDiskStatus();
   }
@@ -364,8 +431,7 @@ function App() {
       failed_count: result.failed_count,
     };
 
-    setLastRun(runResult);
-    setLastCleanupAt(new Date());
+    recordRun(runResult, "uninstall");
     setApplicationCleanupSize((current) => Math.max(0, current - result.released_size));
     setPackageScanResult((current) => {
       if (!current) {
@@ -404,8 +470,7 @@ function App() {
       failed_count: result.failed_count,
     };
 
-    setLastRun(runResult);
-    setLastCleanupAt(new Date());
+    recordRun(runResult, "agent");
     setAgentCleanupSize((current) => Math.max(0, current - result.released_size));
     setAgentScanResult((current) => {
       if (!current) {
@@ -473,6 +538,7 @@ function App() {
         <AppSidebar
           activeView={activeView}
           onSelectView={selectView}
+          showAdvancedFeatures={showAdvancedFeatures}
           sizeForView={sizeForView}
         />
 
@@ -532,7 +598,7 @@ function App() {
           >
             <div className="min-h-0 min-w-0 h-full max-h-full overflow-auto max-[720px]:overflow-visible">
               {activeView === "history" ? (
-                <HistoryPage lastRun={lastRun} />
+                <HistoryPage records={historyRecords} />
               ) : activeView === "agent" ? (
                 <AgentCleanupPage
                   initialScanResult={agentScanResult}
@@ -556,7 +622,7 @@ function App() {
               ) : activeView === "large-files" ? (
                 <LargeFilesPage onDeleteComplete={handleFileDeleteComplete} />
               ) : activeView === "settings" ? (
-                <SettingsPage />
+                <SettingsPage onSettingsSaved={setShowAdvancedFeatures} />
               ) : activeView === "about" ? (
                 <AboutPage />
               ) : activeView === "junk" ? (

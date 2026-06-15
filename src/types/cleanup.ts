@@ -71,6 +71,14 @@ export type CleanupRunResult = {
   failed_count: number;
 };
 
+export type CleanupRunMode = "clean" | "trash" | "uninstall" | "agent";
+
+export type CleanupRunRecord = CleanupRunResult & {
+  id: string;
+  mode: CleanupRunMode;
+  created_at: number;
+};
+
 export type DiskStatus = {
   total: number;
   used: number;
@@ -113,11 +121,13 @@ export type DeleteFilesResult = {
   items: Array<{
     path: string;
     released_size: number;
+    trashed: boolean;
     success: boolean;
     error: string | null;
   }>;
   released_size: number;
   deleted_files: number;
+  trashed_files: number;
   failed_count: number;
 };
 
@@ -126,6 +136,7 @@ export type AppSettings = {
   duplicate_min_size: number;
   file_scan_paths: string[];
   close_to_tray: boolean;
+  show_advanced_features: boolean;
   language: LanguagePreference;
 };
 

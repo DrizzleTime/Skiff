@@ -42,6 +42,11 @@ export const navItems: Array<{
   { key: "about", icon: Info },
 ];
 
+export const advancedViewKeys = new Set<ActiveView>([
+  "agent",
+  "environment",
+]);
+
 export const riskLabelKeys: Record<CleanupRisk, I18nKey> = {
   safe: "risk.safe",
   review: "risk.review",

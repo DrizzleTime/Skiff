@@ -281,8 +281,8 @@ fn run_files_command(options: &GlobalOptions, args: &[String]) -> CliResult<i32>
                 print_json(&result)?;
             } else {
                 println!(
-                    "已删除：{} 个，释放 {}，失败 {} 个",
-                    result.deleted_files,
+                    "已移入回收站：{} 个，大小 {}，失败 {} 个",
+                    result.trashed_files,
                     format_size(result.released_size),
                     result.failed_count
                 );

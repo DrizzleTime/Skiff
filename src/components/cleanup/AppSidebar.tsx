@@ -1,5 +1,5 @@
 import skiffLogo from "../../assets/skiff-logo.svg";
-import { navItems, viewLabelKeys } from "../../lib/cleanup";
+import { advancedViewKeys, navItems, viewLabelKeys } from "../../lib/cleanup";
 import { useI18n } from "../../lib/i18n";
 import { cn } from "../../lib/utils";
 import type { ActiveView } from "../../types/cleanup";
@@ -7,13 +7,18 @@ import type { ActiveView } from "../../types/cleanup";
 export function AppSidebar({
   activeView,
   onSelectView,
+  showAdvancedFeatures,
   sizeForView,
 }: {
   activeView: ActiveView;
   onSelectView: (view: ActiveView) => void;
+  showAdvancedFeatures: boolean;
   sizeForView: (view: ActiveView) => string;
 }) {
   const { t } = useI18n();
+  const visibleNavItems = navItems.filter(
+    (item) => showAdvancedFeatures || !advancedViewKeys.has(item.key) || item.key === activeView,
+  );
 
   return (
     <aside className="flex min-w-0 flex-col border-r border-black/5 bg-[#f3f5f7] max-[720px]:border-r-0 max-[720px]:border-b max-[720px]:border-black/10">
@@ -32,7 +37,7 @@ export function AppSidebar({
       </div>
 
       <nav className="grid gap-1 px-3 py-2 max-[720px]:grid-cols-2" aria-label={t("nav.aria")}>
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const sizeLabel = sizeForView(item.key);
 
@@ -60,6 +65,7 @@ export function AppSidebar({
           );
         })}
       </nav>
+
     </aside>
   );
 }

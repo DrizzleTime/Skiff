@@ -58,6 +58,7 @@ pub struct DeleteFilesRequest {
 pub struct DeleteFileItemResult {
     pub path: String,
     pub released_size: u64,
+    pub trashed: bool,
     pub success: bool,
     pub error: Option<String>,
 }
@@ -67,5 +68,6 @@ pub struct DeleteFilesResult {
     pub items: Vec<DeleteFileItemResult>,
     pub released_size: u64,
     pub deleted_files: u64,
+    pub trashed_files: u64,
     pub failed_count: u64,
 }

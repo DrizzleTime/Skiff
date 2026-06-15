@@ -1,8 +1,16 @@
 import { useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Copy, FileText, Search, Trash2 } from "lucide-react";
+import { Copy, FileText, Search, ShieldAlert, Trash2 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { Checkbox } from "../components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
 import { ActivityPanel } from "../components/cleanup/ActivityPanel";
 import { CleanupEmptyState } from "../components/cleanup/CleanupEmptyState";
 import {
@@ -20,7 +28,6 @@ import type {
   DeleteFilesResult,
   DuplicateFileGroup,
   DuplicateFileScanResult,
-  FileItem,
 } from "../types/cleanup";
 
 function waitForNextFrame() {
@@ -40,16 +47,18 @@ export function DuplicateFilesPage({
   const [scannedFiles, setScannedFiles] = useState(0);
   const [scanning, setScanning] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const files = useMemo(() => groups.flatMap((group) => group.files), [groups]);
   const selectedPathSet = useMemo(() => new Set(selectedPaths), [selectedPaths]);
-  const selectedSize = useMemo(
-    () =>
-      files
-        .filter((file) => selectedPathSet.has(file.path))
-        .reduce((sum, file) => sum + file.size, 0),
+  const selectedFiles = useMemo(
+    () => files.filter((file) => selectedPathSet.has(file.path)),
     [files, selectedPathSet],
+  );
+  const selectedSize = useMemo(
+    () => selectedFiles.reduce((sum, file) => sum + file.size, 0),
+    [selectedFiles],
   );
   const reclaimableSize = useMemo(
     () =>
@@ -74,7 +83,7 @@ export function DuplicateFilesPage({
         request: { group_limit: 40 },
       });
       setGroups(result.groups);
-      setSelectedPaths(defaultDuplicateSelection(result.groups));
+      setSelectedPaths([]);
       setScannedFiles(result.scanned_files);
     } catch (scanError) {
       setError(String(scanError));
@@ -83,7 +92,15 @@ export function DuplicateFilesPage({
     }
   }
 
-  async function deleteSelected() {
+  function requestMoveToTrash() {
+    if (selectedPaths.length === 0 || busy) {
+      return;
+    }
+
+    setConfirming(true);
+  }
+
+  async function moveSelectedToTrash() {
     if (selectedPaths.length === 0 || busy) {
       return;
     }
@@ -114,6 +131,7 @@ export function DuplicateFilesPage({
           .filter((group) => group.files.length > 1),
       );
       setSelectedPaths([]);
+      setConfirming(false);
       onDeleteComplete(result);
 
       if (result.failed_count > 0) {
@@ -175,9 +193,9 @@ export function DuplicateFilesPage({
       <ResultPanel>
         <PanelTitle
           actions={
-            <Button disabled={selectedPaths.length === 0 || busy} onClick={deleteSelected} variant="default">
+            <Button disabled={selectedPaths.length === 0 || busy} onClick={requestMoveToTrash} variant="default">
               <Trash2 className={deleting ? "animate-spin" : undefined} size={16} />
-              {deleting ? t("common.deleting") : t("actions.deleteSelected")}
+              {deleting ? t("common.movingToTrash") : t("actions.moveToTrashSelected")}
             </Button>
           }
         >
@@ -187,7 +205,7 @@ export function DuplicateFilesPage({
               {busy
                 ? scanning
                   ? t("common.scanning")
-                  : t("common.deleting")
+                  : t("common.movingToTrash")
                 : t("format.totalFiles", { count: formatCount(files.length, locale) })}
             </span>
           </div>
@@ -212,18 +230,45 @@ export function DuplicateFilesPage({
           />
         )}
       </ResultPanel>
+
+      <Dialog open={confirming} onOpenChange={setConfirming}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("duplicates.confirm.title")}</DialogTitle>
+            <DialogDescription>
+              {t("duplicates.confirm.description", {
+                count: formatCount(selectedFiles.length, locale),
+                size: formatSize(selectedSize),
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid max-h-[220px] gap-1.5 overflow-auto rounded-lg border border-[#f1d4b8] bg-[#fff9f2] p-3 text-xs text-[#755118]">
+            <div className="mb-1 flex items-center gap-2 font-semibold">
+              <ShieldAlert size={15} />
+              <span>{t("duplicates.confirm.recoverable")}</span>
+            </div>
+            {selectedFiles.slice(0, 8).map((file) => (
+              <code className="break-all rounded-md bg-white/75 px-2 py-1" key={file.path}>
+                {file.path}
+              </code>
+            ))}
+            {selectedFiles.length > 8 ? (
+              <span>{t("duplicates.confirm.more", { count: formatCount(selectedFiles.length - 8, locale) })}</span>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button disabled={deleting} onClick={() => setConfirming(false)} variant="outline">
+              {t("actions.cancel")}
+            </Button>
+            <Button disabled={deleting} onClick={moveSelectedToTrash}>
+              <Trash2 className={deleting ? "animate-spin" : undefined} size={15} />
+              {deleting ? t("common.movingToTrash") : t("actions.confirmMoveToTrash")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageSurface>
   );
-}
-
-function defaultDuplicateSelection(groups: DuplicateFileGroup[]) {
-  const selected: string[] = [];
-
-  for (const group of groups) {
-    selected.push(...group.files.slice(1).map((file: FileItem) => file.path));
-  }
-
-  return selected;
 }
 
 function DuplicateGroupRows({

@@ -36,6 +36,12 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build frontend
+        run: bun run build
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
       - name: Publish Linux packages
         if: github.ref_type == 'tag'
         uses: tauri-apps/tauri-action@v0.6
@@ -87,6 +93,12 @@ jobs:
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
 
+      - name: Build frontend
+        run: bun run build
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
       - name: Publish macOS ARM64 DMG
         if: github.ref_type == 'tag'
         uses: tauri-apps/tauri-action@v0.6
@@ -132,6 +144,12 @@ jobs:
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
+
+      - name: Build frontend
+        run: bun run build
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Publish Windows exe
         if: github.ref_type == 'tag'

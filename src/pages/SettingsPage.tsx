@@ -1,7 +1,18 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { FolderOpen, Plus, Save, Settings, X } from "lucide-react";
+import {
+  Copy,
+  FolderOpen,
+  FolderSearch,
+  HardDrive,
+  Languages,
+  Minimize2,
+  Plus,
+  Save,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageSurface, ToolStrip } from "../components/cleanup/PageChrome";
 import { Button } from "../components/ui/button";
@@ -27,13 +38,18 @@ const scanPathRowClass =
   "grid min-h-[120px] grid-cols-[minmax(0,1fr)_minmax(320px,520px)] items-start gap-5 border-b border-[#eeeeee] px-5 py-[18px] last:border-b-0 max-[720px]:grid-cols-1";
 const fieldClass = "grid grid-cols-[24px_minmax(0,1fr)] gap-x-2.5 gap-y-1.5";
 
-export function SettingsPage() {
+export function SettingsPage({
+  onSettingsSaved,
+}: {
+  onSettingsSaved?: (showAdvancedFeatures: boolean) => void;
+}) {
   const { languagePreference, setLanguagePreference, t } = useI18n();
   const [largeFileMinSize, setLargeFileMinSize] = useState(500);
   const [duplicateMinSize, setDuplicateMinSize] = useState(10);
   const [scanPaths, setScanPaths] = useState<string[]>([]);
   const [scanPathInput, setScanPathInput] = useState("");
   const [closeToTray, setCloseToTray] = useState(true);
+  const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(false);
   const [localLanguage, setLocalLanguage] =
     useState<LanguagePreference>(languagePreference);
 
@@ -52,6 +68,7 @@ export function SettingsPage() {
       setDuplicateMinSize(Math.round(settings.duplicate_min_size / MB));
       setScanPaths(settings.file_scan_paths ?? []);
       setCloseToTray(settings.close_to_tray);
+      setShowAdvancedFeatures(settings.show_advanced_features);
       setLocalLanguage(settings.language ?? "system");
       setLanguagePreference(settings.language ?? "system");
     } catch (error) {
@@ -67,12 +84,15 @@ export function SettingsPage() {
           duplicate_min_size: duplicateMinSize * MB,
           file_scan_paths: scanPaths,
           close_to_tray: closeToTray,
+          show_advanced_features: showAdvancedFeatures,
           language: localLanguage,
         },
       });
       setScanPaths(settings.file_scan_paths ?? []);
+      setShowAdvancedFeatures(settings.show_advanced_features);
       setScanPathInput("");
       setLanguagePreference(localLanguage);
+      onSettingsSaved?.(settings.show_advanced_features);
       toast.success(t("settings.saved"));
     } catch (error) {
       toast.error(String(error));
@@ -124,7 +144,7 @@ export function SettingsPage() {
       <div className="overflow-visible rounded-md border border-[#e5e5e5] bg-white">
         <div className={settingsRowClass}>
           <Field className={fieldClass} orientation="horizontal">
-            <Settings className="row-span-2 self-start" size={18} />
+            <HardDrive className="row-span-2 self-start" size={18} />
             <FieldContent>
               <FieldTitle className="text-sm">{t("settings.large.title")}</FieldTitle>
               <FieldDescription className="text-xs text-[#6f6f6f]">
@@ -146,7 +166,7 @@ export function SettingsPage() {
 
         <div className={scanPathRowClass}>
           <Field className={fieldClass} orientation="horizontal">
-            <Settings className="row-span-2 self-start" size={18} />
+            <FolderSearch className="row-span-2 self-start" size={18} />
             <FieldContent>
               <FieldTitle className="text-sm">{t("settings.scanPaths.title")}</FieldTitle>
               <FieldDescription className="text-xs text-[#6f6f6f]">
@@ -219,7 +239,7 @@ export function SettingsPage() {
 
         <div className={settingsRowClass}>
           <Field className={fieldClass} orientation="horizontal">
-            <Settings className="row-span-2 self-start" size={18} />
+            <Copy className="row-span-2 self-start" size={18} />
             <FieldContent>
               <FieldTitle className="text-sm">{t("settings.duplicate.title")}</FieldTitle>
               <FieldDescription className="text-xs text-[#6f6f6f]">
@@ -241,7 +261,7 @@ export function SettingsPage() {
 
         <div className={settingsRowClass}>
           <Field className={fieldClass} orientation="horizontal">
-            <Settings className="row-span-2 self-start" size={18} />
+            <Minimize2 className="row-span-2 self-start" size={18} />
             <FieldContent>
               <FieldTitle className="text-sm">{t("settings.closeToTray.title")}</FieldTitle>
               <FieldDescription className="text-xs text-[#6f6f6f]">
@@ -258,9 +278,28 @@ export function SettingsPage() {
           </div>
         </div>
 
+        <div className={settingsRowClass}>
+          <Field className={fieldClass} orientation="horizontal">
+            <SlidersHorizontal className="row-span-2 self-start" size={18} />
+            <FieldContent>
+              <FieldTitle className="text-sm">{t("settings.advanced.title")}</FieldTitle>
+              <FieldDescription className="text-xs text-[#6f6f6f]">
+                {t("settings.advanced.description")}
+              </FieldDescription>
+            </FieldContent>
+          </Field>
+          <div className="flex items-center justify-end max-[720px]:justify-start">
+            <Switch
+              aria-label={t("settings.advanced.title")}
+              checked={showAdvancedFeatures}
+              onCheckedChange={setShowAdvancedFeatures}
+            />
+          </div>
+        </div>
+
         <div className={languageRowClass}>
           <Field className={fieldClass} orientation="horizontal">
-            <Settings className="row-span-2 self-start" size={18} />
+            <Languages className="row-span-2 self-start" size={18} />
             <FieldContent>
               <FieldTitle className="text-sm">{t("settings.language.title")}</FieldTitle>
               <FieldDescription className="text-xs text-[#6f6f6f]">

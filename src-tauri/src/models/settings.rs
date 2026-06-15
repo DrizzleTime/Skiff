@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_LARGE_FILE_MIN_SIZE: u64 = 500 * 1024 * 1024;
 pub const DEFAULT_DUPLICATE_MIN_SIZE: u64 = 10 * 1024 * 1024;
 pub const DEFAULT_CLOSE_TO_TRAY: bool = true;
+pub const DEFAULT_SHOW_ADVANCED_FEATURES: bool = false;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -11,6 +12,7 @@ pub struct AppSettings {
     pub duplicate_min_size: u64,
     pub file_scan_paths: Vec<String>,
     pub close_to_tray: bool,
+    pub show_advanced_features: bool,
     pub language: LanguagePreference,
 }
 
@@ -32,6 +34,7 @@ impl Default for AppSettings {
             duplicate_min_size: DEFAULT_DUPLICATE_MIN_SIZE,
             file_scan_paths: Vec::new(),
             close_to_tray: DEFAULT_CLOSE_TO_TRAY,
+            show_advanced_features: DEFAULT_SHOW_ADVANCED_FEATURES,
             language: LanguagePreference::System,
         }
     }

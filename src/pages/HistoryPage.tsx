@@ -11,19 +11,36 @@ import { CleanupEmptyState } from "../components/cleanup/CleanupEmptyState";
 import { formatCount, formatSize } from "../lib/format";
 import { useI18n } from "../lib/i18n";
 import { cn } from "../lib/utils";
-import type { CleanupRunResult } from "../types/cleanup";
+import type { CleanupRunRecord } from "../types/cleanup";
 
 const tableGridClass =
   "grid grid-cols-[minmax(150px,1fr)_minmax(180px,1.35fr)_70px_76px_118px] items-center gap-2.5 max-[720px]:min-w-[660px]";
 
-export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
+export function HistoryPage({ records }: { records: CleanupRunRecord[] }) {
   const { locale, t } = useI18n();
+  const lastRun = records[0] ?? null;
   const successCount = lastRun
     ? lastRun.items.filter((item) => item.success).length
     : 0;
   const hasFailures = Boolean(lastRun?.failed_count);
   const releasedLabel = lastRun ? formatSize(lastRun.released_size) : "0 B";
   const processedLabel = lastRun ? formatCount(lastRun.deleted_files, locale) : "0";
+  const metricLabel =
+    lastRun?.mode === "trash"
+      ? t("history.metrics.movedToTrash")
+      : t("history.metrics.released");
+  const successLabel =
+    lastRun?.mode === "trash"
+      ? t("history.trashStatus")
+      : t("history.successStatus");
+  const rows = records.flatMap((record) =>
+    record.items.map((item) => ({
+      ...item,
+      mode: record.mode,
+      recordId: record.id,
+      createdAt: record.created_at,
+    })),
+  );
 
   return (
     <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-[#e5e5e5] bg-white">
@@ -56,7 +73,7 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
               {hasFailures ? <AlertTriangle size={22} /> : <CheckCircle2 size={22} />}
               <div>
                 <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-[780] leading-tight text-[#171717]">
-                  {hasFailures ? t("history.failedStatus") : t("history.successStatus")}
+                  {hasFailures ? t("history.failedStatus") : successLabel}
                 </strong>
                 <span className="mt-1 block text-xs leading-tight text-[#686868]">
                   {t("history.statusLine", {
@@ -71,7 +88,7 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
               <div className="grid min-h-12 min-w-[110px] grid-cols-[auto_auto] items-center gap-x-1.5 px-3 py-2 max-[720px]:min-w-0 max-[720px]:flex-1">
                 <HardDrive className="text-[#555555]" size={16} />
                 <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-semibold leading-tight text-[#727272]">
-                  {t("history.metrics.released")}
+                  {metricLabel}
                 </span>
                 <strong className="col-span-full mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-[15px] font-[780] leading-none text-[#101010]">
                   {releasedLabel}
@@ -106,14 +123,14 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
               <span>{t("history.table.released")}</span>
               <span>{t("history.table.status")}</span>
             </div>
-            {lastRun.items.map((item) => (
+            {rows.map((item) => (
               <div
                 className={cn(
                   tableGridClass,
                   "min-h-[58px] border-b border-[#eeeeee] px-5 py-2 hover:bg-[#fafafa]",
                   item.success ? "bg-white" : "bg-[#fffafa]",
                 )}
-                key={item.id}
+                key={`${item.recordId}:${item.id}`}
               >
                 <div className="flex min-w-0 items-center gap-2">
                   {item.success ? (
@@ -121,9 +138,14 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
                   ) : (
                     <XCircle className="shrink-0 text-[#991b1b]" size={16} />
                   )}
-                  <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-bold leading-tight text-[#171717]">
-                    {item.name}
-                  </strong>
+                  <span className="grid min-w-0 gap-1">
+                    <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-bold leading-tight text-[#171717]">
+                      {item.name}
+                    </strong>
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-tight text-[#7a7a7a]">
+                      {formatHistoryTime(item.createdAt, locale)}
+                    </span>
+                  </span>
                 </div>
                 <code
                   className="overflow-hidden text-ellipsis whitespace-nowrap font-mono text-[11px] text-[#707070]"
@@ -153,7 +175,11 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
                         : "border-[#efcccc] bg-[#fff5f5] text-[#991b1b]",
                     )}
                   >
-                    {item.success ? t("common.success") : t("common.failure")}
+                    {item.success
+                      ? item.mode === "trash"
+                        ? t("common.movedToTrash")
+                        : t("common.success")
+                      : t("common.failure")}
                   </span>
                   {item.error ? (
                     <p className="max-w-full text-[11px] leading-snug text-[#991b1b] [overflow-wrap:anywhere]">
@@ -168,4 +194,13 @@ export function HistoryPage({ lastRun }: { lastRun: CleanupRunResult | null }) {
       )}
     </section>
   );
+}
+
+function formatHistoryTime(value: number, locale: "zh-CN" | "en-US") {
+  return new Date(value).toLocaleString(locale, {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

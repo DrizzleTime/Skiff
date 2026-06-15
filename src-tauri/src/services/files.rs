@@ -82,7 +82,6 @@ fn default_scan_roots(home: &Path) -> Vec<PathBuf> {
         ],
     );
 
-    push_platform_scan_roots(&mut roots, home);
     push_cloud_storage_roots(&mut roots, home);
 
     if roots.is_empty() {
@@ -153,62 +152,6 @@ fn resolve_scan_path(home: &Path, path_text: &str) -> Result<PathBuf, String> {
 
     Ok(path)
 }
-
-#[cfg(target_os = "windows")]
-fn push_platform_scan_roots(roots: &mut Vec<PathBuf>, home: &Path) {
-    push_existing_dirs(
-        roots,
-        home,
-        &[
-            "3D Objects",
-            "Contacts",
-            "Favorites",
-            "Links",
-            "Saved Games",
-            "Searches",
-            "AppData/Local",
-            "AppData/LocalLow",
-            "AppData/Roaming",
-        ],
-    );
-}
-
-#[cfg(target_os = "macos")]
-fn push_platform_scan_roots(roots: &mut Vec<PathBuf>, home: &Path) {
-    push_existing_dirs(
-        roots,
-        home,
-        &[
-            "Applications",
-            "Library/Application Support",
-            "Library/Caches",
-            "Library/CloudStorage",
-            "Library/Containers",
-            "Library/Developer",
-            "Library/Group Containers",
-            "Library/Mobile Documents",
-        ],
-    );
-}
-
-#[cfg(target_os = "linux")]
-fn push_platform_scan_roots(roots: &mut Vec<PathBuf>, home: &Path) {
-    push_existing_dirs(
-        roots,
-        home,
-        &[
-            ".cache",
-            ".config",
-            ".local/share",
-            ".local/state",
-            ".var/app",
-            "snap",
-        ],
-    );
-}
-
-#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-fn push_platform_scan_roots(_roots: &mut Vec<PathBuf>, _home: &Path) {}
 
 fn push_cloud_storage_roots(roots: &mut Vec<PathBuf>, home: &Path) {
     let Ok(entries) = fs::read_dir(home) else {
@@ -356,20 +299,29 @@ pub fn find_duplicate_files(
             }
         }
 
-        for (hash, mut hash_files) in by_hash {
+        for (hash, hash_files) in by_hash {
             if hash_files.len() < 2 {
                 continue;
             }
 
-            hash_files.sort_by(|left, right| left.path.cmp(&right.path));
-            let count = hash_files.len() as u64;
-            groups.push(DuplicateFileGroup {
-                id: format!("{size}-{hash}"),
-                size,
-                count,
-                reclaimable_size: size * (count - 1),
-                files: hash_files,
-            });
+            for (index, mut exact_files) in partition_exact_duplicates(hash_files)
+                .into_iter()
+                .enumerate()
+            {
+                if exact_files.len() < 2 {
+                    continue;
+                }
+
+                exact_files.sort_by(|left, right| left.path.cmp(&right.path));
+                let count = exact_files.len() as u64;
+                groups.push(DuplicateFileGroup {
+                    id: format!("{size}-{hash}-{index}"),
+                    size,
+                    count,
+                    reclaimable_size: size * (count - 1),
+                    files: exact_files,
+                });
+            }
         }
     }
 
@@ -399,12 +351,14 @@ pub fn delete_files(home: &Path, paths: &[String]) -> Result<DeleteFilesResult, 
             Ok(size) => DeleteFileItemResult {
                 path: path_text.clone(),
                 released_size: size,
+                trashed: true,
                 success: true,
                 error: None,
             },
             Err(err) => DeleteFileItemResult {
                 path: path_text.clone(),
                 released_size: 0,
+                trashed: false,
                 success: false,
                 error: Some(err),
             },
@@ -414,12 +368,14 @@ pub fn delete_files(home: &Path, paths: &[String]) -> Result<DeleteFilesResult, 
 
     let released_size = items.iter().map(|item| item.released_size).sum();
     let deleted_files = items.iter().filter(|item| item.success).count() as u64;
+    let trashed_files = items.iter().filter(|item| item.trashed).count() as u64;
     let failed_count = items.iter().filter(|item| !item.success).count() as u64;
 
     Ok(DeleteFilesResult {
         items,
         released_size,
         deleted_files,
+        trashed_files,
         failed_count,
     })
 }
@@ -517,6 +473,56 @@ fn hash_file(path: &Path) -> io::Result<u64> {
     Ok(hasher.finish())
 }
 
+fn partition_exact_duplicates(files: Vec<FileItem>) -> Vec<Vec<FileItem>> {
+    let mut groups: Vec<Vec<FileItem>> = Vec::new();
+
+    for file in files {
+        let mut pending_file = Some(file);
+
+        for group in &mut groups {
+            let Some(candidate) = pending_file.as_ref() else {
+                break;
+            };
+            let representative = Path::new(&group[0].path);
+            if files_have_same_contents(representative, Path::new(&candidate.path)).unwrap_or(false)
+            {
+                if let Some(file) = pending_file.take() {
+                    group.push(file);
+                }
+                break;
+            }
+        }
+
+        if let Some(file) = pending_file {
+            groups.push(vec![file]);
+        }
+    }
+
+    groups
+}
+
+fn files_have_same_contents(left: &Path, right: &Path) -> io::Result<bool> {
+    let mut left_file = fs::File::open(left)?;
+    let mut right_file = fs::File::open(right)?;
+    let mut left_buffer = [0; 8192];
+    let mut right_buffer = [0; 8192];
+
+    loop {
+        let left_read = left_file.read(&mut left_buffer)?;
+        let right_read = right_file.read(&mut right_buffer)?;
+
+        if left_read != right_read {
+            return Ok(false);
+        }
+        if left_read == 0 {
+            return Ok(true);
+        }
+        if left_buffer[..left_read] != right_buffer[..right_read] {
+            return Ok(false);
+        }
+    }
+}
+
 fn delete_one_file(home: &Path, path: &Path) -> Result<u64, String> {
     if !path.is_absolute() {
         return Err("只能删除绝对路径文件。".to_string());
@@ -535,7 +541,7 @@ fn delete_one_file(home: &Path, path: &Path) -> Result<u64, String> {
     }
 
     let size = metadata.len();
-    fs::remove_file(path).map_err(|err| format!("删除文件失败：{err}"))?;
+    trash::delete(path).map_err(|err| format!("移入回收站失败：{err}"))?;
 
     Ok(size)
 }
@@ -555,28 +561,21 @@ mod tests {
     }
 
     #[test]
-    fn scan_roots_includes_common_platform_and_cloud_dirs() {
+    fn scan_roots_includes_common_and_cloud_dirs() {
         let dir = tempdir().expect("tempdir");
         fs::create_dir(dir.path().join("Documents")).expect("create documents");
         fs::create_dir(dir.path().join("Projects")).expect("create projects");
         fs::create_dir(dir.path().join("OneDrive - Work")).expect("create onedrive");
-
-        for candidate in platform_scan_root_candidates() {
-            fs::create_dir_all(dir.path().join(candidate)).expect("create platform candidate");
-        }
 
         let roots = scan_roots(dir.path(), &[]);
 
         assert!(roots.contains(&dir.path().join("Documents")));
         assert!(roots.contains(&dir.path().join("Projects")));
         assert!(roots.contains(&dir.path().join("OneDrive - Work")));
-        for candidate in platform_scan_root_candidates() {
-            assert!(roots.contains(&dir.path().join(candidate)));
-        }
     }
 
     #[test]
-    fn large_file_scan_reads_explicit_platform_roots() {
+    fn default_scan_roots_skip_platform_application_data() {
         let Some(candidate) = platform_scan_root_candidates().first() else {
             return;
         };
@@ -586,6 +585,22 @@ mod tests {
         fs::write(root.join("large.txt"), b"large-enough").expect("write large");
 
         let result = find_large_files(dir.path(), 8, 20, &[]).expect("scan large files");
+
+        assert_eq!(result.total_files, 0);
+    }
+
+    #[test]
+    fn custom_scan_roots_can_read_platform_application_data() {
+        let Some(candidate) = platform_scan_root_candidates().first() else {
+            return;
+        };
+        let dir = tempdir().expect("tempdir");
+        let root = dir.path().join(candidate);
+        fs::create_dir_all(&root).expect("create platform root");
+        fs::write(root.join("large.txt"), b"large-enough").expect("write large");
+
+        let result = find_large_files(dir.path(), 8, 20, &[candidate.to_string()])
+            .expect("scan large files");
 
         assert_eq!(result.total_files, 1);
         assert_eq!(result.items[0].name, "large.txt");
@@ -648,5 +663,35 @@ mod tests {
         assert_eq!(result.total_files, 1);
         assert_eq!(result.items.len(), 1);
         assert_eq!(result.items[0].name, "large.txt");
+    }
+
+    #[test]
+    fn exact_duplicate_partition_splits_files_with_different_contents() {
+        let dir = tempdir().expect("tempdir");
+        let first = dir.path().join("first.txt");
+        let second = dir.path().join("second.txt");
+        let different = dir.path().join("different.txt");
+        fs::write(&first, b"same-content").expect("write first");
+        fs::write(&second, b"same-content").expect("write second");
+        fs::write(&different, b"other-content").expect("write different");
+
+        let groups = partition_exact_duplicates(vec![
+            file_item(&first, "first.txt"),
+            file_item(&second, "second.txt"),
+            file_item(&different, "different.txt"),
+        ]);
+        let group_lengths: Vec<usize> = groups.iter().map(Vec::len).collect();
+
+        assert_eq!(group_lengths, vec![2, 1]);
+    }
+
+    fn file_item(path: &Path, name: &str) -> FileItem {
+        FileItem {
+            id: path.display().to_string(),
+            name: name.to_string(),
+            path: path.display().to_string(),
+            size: fs::metadata(path).expect("metadata").len(),
+            modified: None,
+        }
     }
 }
