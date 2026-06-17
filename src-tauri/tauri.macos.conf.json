@@ -8,7 +8,10 @@
         "height": 800,
         "decorations": true,
         "transparent": false,
-        "shadow": true
+        "shadow": true,
+        "titleBarStyle": "Transparent",
+        "hiddenTitle": true,
+        "backgroundColor": "#f3f5f7"
       }
     ]
   },

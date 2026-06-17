@@ -165,6 +165,37 @@ body {
   background: transparent;
 }
 
+.skiff-system-titlebar {
+  background:
+    linear-gradient(90deg, #f3f5f7 0 232px, #f7f8f6 232px 100%);
+}
+
+.skiff-system-titlebar .skiff-sidebar {
+  padding-top: 18px;
+}
+
+.skiff-system-titlebar .skiff-toolbar {
+  min-height: 82px;
+  border-bottom-color: rgb(0 0 0 / 4%);
+  background:
+    linear-gradient(180deg, rgb(243 245 247 / 74%) 0%, rgb(247 248 246 / 98%) 54%, #f7f8f6 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 70%);
+}
+
+@media (max-width: 720px) {
+  .skiff-system-titlebar {
+    background: #f7f8f6;
+  }
+
+  .skiff-system-titlebar .skiff-sidebar {
+    padding-top: 0;
+  }
+
+  .skiff-system-titlebar .skiff-toolbar {
+    min-height: 76px;
+  }
+}
+
 button,
 input {
   font: inherit;

@@ -21,7 +21,7 @@ export function AppSidebar({
   );
 
   return (
-    <aside className="flex min-w-0 flex-col border-r border-black/5 bg-[#f3f5f7] max-[720px]:border-r-0 max-[720px]:border-b max-[720px]:border-black/10">
+    <aside className="skiff-sidebar flex min-w-0 flex-col border-r border-black/5 bg-[#f3f5f7] max-[720px]:border-r-0 max-[720px]:border-b max-[720px]:border-black/10">
       <div className="flex min-h-[78px] items-center gap-3 px-5 max-[720px]:min-h-[58px]">
         <div className="grid size-9 place-items-center rounded-lg border border-black/5 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.06)]">
           <img className="block size-[23px]" src={skiffLogo} alt="" aria-hidden="true" />

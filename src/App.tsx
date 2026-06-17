@@ -523,7 +523,7 @@ function App() {
       className={cn(
         "grid h-full w-full overflow-hidden max-[720px]:h-auto max-[720px]:min-h-screen max-[720px]:overflow-visible",
         useSystemTitlebar
-          ? "grid-rows-[minmax(0,1fr)] bg-[#f7f8f6] max-[720px]:grid-rows-[auto]"
+          ? "skiff-system-titlebar grid-rows-[minmax(0,1fr)] bg-[#f3f5f7] max-[720px]:grid-rows-[auto]"
           : "grid-rows-[40px_minmax(0,1fr)] rounded-2xl border border-black/10 bg-[#f3f5f7] shadow-[0_24px_80px_rgba(15,23,42,0.16)] max-[720px]:grid-rows-[40px_auto] max-[720px]:rounded-none max-[720px]:border-0 max-[720px]:shadow-none",
       )}
     >
@@ -532,7 +532,9 @@ function App() {
       <div
         className={cn(
           "grid min-h-0 min-w-0 grid-cols-[232px_minmax(0,1fr)] overflow-hidden bg-[#f7f8f6] max-[720px]:grid-cols-1 max-[720px]:overflow-visible",
-          useSystemTitlebar ? "max-[720px]:min-h-screen" : "max-[720px]:min-h-[calc(100vh-40px)]",
+          useSystemTitlebar
+            ? "bg-[#f3f5f7] max-[720px]:min-h-screen"
+            : "max-[720px]:min-h-[calc(100vh-40px)]",
         )}
       >
         <AppSidebar
