@@ -11,11 +11,19 @@ export function WindowTitlebar() {
   const { t } = useI18n();
 
   function handleDrag(event: MouseEvent<HTMLDivElement>) {
-    if (event.button !== 0) {
+    if (event.button !== 0 || event.detail > 1) {
       return;
     }
 
     runWindowAction(() => getCurrentWindow().startDragging());
+  }
+
+  function handleDoubleClick(event: MouseEvent<HTMLDivElement>) {
+    if (event.button !== 0) {
+      return;
+    }
+
+    runWindowAction(() => getCurrentWindow().toggleMaximize());
   }
 
   return (
@@ -47,7 +55,11 @@ export function WindowTitlebar() {
         </button>
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center justify-center px-28" onMouseDown={handleDrag}>
+      <div
+        className="flex min-w-0 flex-1 items-center justify-center px-28"
+        onDoubleClick={handleDoubleClick}
+        onMouseDown={handleDrag}
+      >
         <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-xs font-[650] leading-none text-[#5f6873]">
           Skiff
         </strong>

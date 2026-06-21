@@ -11,6 +11,8 @@ export type RunState =
   | "done"
   | "error";
 
+export type AppMode = "classic" | "space";
+
 export type ActiveView =
   | "overview"
   | "junk"
@@ -138,6 +140,9 @@ export type AppSettings = {
   close_to_tray: boolean;
   show_advanced_features: boolean;
   language: LanguagePreference;
+  ai_endpoint: string;
+  ai_api_key: string;
+  ai_model: string;
 };
 
 export type LanguagePreference = "system" | "zh-CN" | "en-US";
@@ -307,4 +312,60 @@ export type AgentCleanupResult = {
   deleted_threads: number;
   deleted_logs: number;
   failed_count: number;
+};
+
+export type SpaceScanNodeKind = "directory" | "file";
+
+export type SpaceScanNode = {
+  id: string;
+  name: string;
+  path: string;
+  kind: SpaceScanNodeKind;
+  size: number;
+  files: number;
+  dirs: number;
+  depth: number;
+  children: SpaceScanNode[];
+  read_error: string | null;
+};
+
+export type SpaceScanResult = {
+  root: SpaceScanNode;
+  total_size: number;
+  total_files: number;
+  total_dirs: number;
+  inspected_entries: number;
+  unreadable_entries: number;
+  truncated_dirs: number;
+};
+
+export type SpaceAiReportItem = {
+  name: string;
+  path: string;
+  kind: SpaceScanNodeKind;
+  size: number;
+  files: number;
+  dirs: number;
+  depth: number;
+};
+
+export type SpaceAiChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export type SpaceAiAnalysisRequest = {
+  path: string;
+  total_size: number;
+  total_files: number;
+  total_dirs: number;
+  unreadable_entries: number;
+  top_items: SpaceAiReportItem[];
+  messages: SpaceAiChatMessage[];
+};
+
+export type SpaceAiAnalysisResult = {
+  provider: string;
+  model: string;
+  content: string;
 };

@@ -24,6 +24,8 @@ export function Toolbar({
   onClean,
   onConfirm,
   onCancel,
+  title,
+  subtitle,
 }: {
   activeView: ActiveView;
   runState: RunState;
@@ -37,21 +39,23 @@ export function Toolbar({
   onClean: () => void;
   onConfirm: () => void;
   onCancel: () => void;
+  title?: string;
+  subtitle?: string;
 }) {
   const { t } = useI18n();
   const busy = runState === "scanning" || runState === "cleaning";
-  const subtitle = isJunkCleanupView(activeView)
+  const resolvedSubtitle = subtitle ?? (isJunkCleanupView(activeView)
     ? `${t(statusLabelKeys[runState])}${mountPoint ? ` · ${mountPoint}` : ""}`
-    : t(viewDescriptionKeys[activeView]);
+    : t(viewDescriptionKeys[activeView]));
 
   return (
     <header className="skiff-toolbar grid min-h-[76px] min-w-0 grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-4 border-b border-black/5 bg-[#f7f8f6] px-7 max-[980px]:px-6 max-[720px]:grid-cols-1 max-[720px]:grid-rows-[auto_auto] max-[720px]:px-3 max-[720px]:py-2.5">
       <div className="min-w-0">
         <h1 className="overflow-hidden text-ellipsis whitespace-nowrap text-[24px] font-[720] leading-tight tracking-normal text-[#101419]">
-          {t(viewLabelKeys[activeView])}
+          {title ?? t(viewLabelKeys[activeView])}
         </h1>
         <span className="mt-1.5 block overflow-hidden text-ellipsis whitespace-nowrap text-[13px] leading-tight text-[#69727d]">
-          {subtitle}
+          {resolvedSubtitle}
         </span>
       </div>
 

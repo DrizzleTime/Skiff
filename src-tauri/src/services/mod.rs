@@ -5,4 +5,6 @@ pub mod env_vars;
 pub mod files;
 pub mod packages;
 pub mod settings;
+pub mod space;
+pub mod space_ai;
 pub mod system;

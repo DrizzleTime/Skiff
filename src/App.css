@@ -149,6 +149,8 @@ body,
 #root {
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  background: transparent;
 }
 
 body {
@@ -163,14 +165,35 @@ body {
 
 #root {
   background: transparent;
+  border-radius: 1rem;
+}
+
+.skiff-main-layout {
+  grid-template-columns: 232px minmax(0, 1fr);
+}
+
+.skiff-main-layout[data-mode="space"] {
+  grid-template-columns: clamp(320px, 28vw, 560px) minmax(0, 1fr);
 }
 
 .skiff-system-titlebar {
+  --skiff-left-column: 232px;
   background:
-    linear-gradient(90deg, #f3f5f7 0 232px, #f7f8f6 232px 100%);
+    linear-gradient(
+      90deg,
+      #f3f5f7 0,
+      #f3f5f7 var(--skiff-left-column),
+      #f7f8f6 var(--skiff-left-column),
+      #f7f8f6 100%
+    );
 }
 
-.skiff-system-titlebar .skiff-sidebar {
+.skiff-system-titlebar[data-mode="space"] {
+  --skiff-left-column: clamp(320px, 28vw, 560px);
+}
+
+.skiff-system-titlebar .skiff-sidebar,
+.skiff-system-titlebar .skiff-space-sidebar {
   padding-top: 18px;
 }
 
@@ -183,11 +206,17 @@ body {
 }
 
 @media (max-width: 720px) {
+  .skiff-main-layout,
+  .skiff-main-layout[data-mode="space"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .skiff-system-titlebar {
     background: #f7f8f6;
   }
 
-  .skiff-system-titlebar .skiff-sidebar {
+  .skiff-system-titlebar .skiff-sidebar,
+  .skiff-system-titlebar .skiff-space-sidebar {
     padding-top: 0;
   }
 
@@ -222,6 +251,125 @@ h2 {
   margin: 0;
 }
 
+.skiff-markdown {
+  min-width: 0;
+  user-select: text;
+  -webkit-user-select: text;
+  overflow-wrap: anywhere;
+}
+
+.skiff-markdown :where(p, ul, ol, pre, table, blockquote, h1, h2, h3) {
+  margin-top: 0.65em;
+}
+
+.skiff-markdown > :first-child {
+  margin-top: 0;
+}
+
+.skiff-markdown :where(h1, h2, h3) {
+  color: #151b22;
+  font-weight: 760;
+  line-height: 1.25;
+}
+
+.skiff-markdown :where(h1) {
+  font-size: 1.1em;
+}
+
+.skiff-markdown :where(h2) {
+  font-size: 1.04em;
+}
+
+.skiff-markdown :where(h3) {
+  font-size: 1em;
+}
+
+.skiff-markdown :where(ul, ol) {
+  padding-left: 1.25rem;
+}
+
+.skiff-markdown :where(li) {
+  margin-top: 0.25em;
+}
+
+.skiff-markdown :where(strong) {
+  color: #151b22;
+  font-weight: 760;
+}
+
+.skiff-markdown :where(a) {
+  color: #145c53;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.skiff-markdown :where(code) {
+  border-radius: 4px;
+  background: #edf1ef;
+  color: #151b22;
+  font-family:
+    "SFMono-Regular", Consolas, "Liberation Mono", Menlo, ui-monospace,
+    monospace;
+  font-size: 0.92em;
+  padding: 0.1em 0.32em;
+}
+
+.skiff-markdown :where(pre) {
+  overflow: auto;
+  border-radius: 8px;
+  background: #111827;
+  color: #f8fafc;
+  padding: 0.75rem;
+}
+
+.skiff-markdown :where(pre code) {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+.skiff-markdown :where(blockquote) {
+  border-left: 3px solid #cfd9d6;
+  color: #58616d;
+  padding-left: 0.75rem;
+}
+
+.skiff-markdown :where(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+}
+
+.skiff-markdown :where(th, td) {
+  border: 1px solid #e1e5e3;
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.skiff-markdown :where(th) {
+  background: #f0f3f2;
+  color: #151b22;
+  font-weight: 720;
+}
+
+.skiff-markdown-inverted :where(h1, h2, h3, strong, a, code) {
+  color: #ffffff;
+}
+
+.skiff-markdown-inverted :where(code) {
+  background: rgb(255 255 255 / 18%);
+}
+
+.skiff-markdown-inverted :where(pre) {
+  background: rgb(0 0 0 / 24%);
+}
+
+.skiff-markdown-inverted :where(blockquote) {
+  border-left-color: rgb(255 255 255 / 40%);
+  color: rgb(255 255 255 / 82%);
+}
+
 @keyframes skiff-sweep {
   0% {
     transform: translateX(-110%);
@@ -236,8 +384,126 @@ h2 {
   }
 }
 
+.skiff-world-shell {
+  --skiff-world-glow: 127 209 196;
+  --skiff-world-flare: 56 189 248;
+  position: relative;
+  isolation: isolate;
+}
+
+.skiff-world-shell[data-mode="classic"] {
+  --skiff-world-glow: 20 92 83;
+  --skiff-world-flare: 250 204 21;
+}
+
+.skiff-world-shell::before,
+.skiff-world-shell::after {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  content: "";
+}
+
+.skiff-world-shell::before {
+  background:
+    radial-gradient(circle at 50% 50%, rgb(255 255 255 / 58%) 0 8%, rgb(var(--skiff-world-glow) / 18%) 18%, rgb(var(--skiff-world-glow) / 0%) 46%),
+    linear-gradient(90deg, rgb(var(--skiff-world-glow) / 0%) 0%, rgb(var(--skiff-world-glow) / 13%) 36%, rgb(255 255 255 / 74%) 50%, rgb(var(--skiff-world-flare) / 16%) 64%, rgb(var(--skiff-world-glow) / 0%) 100%);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform: scaleX(0.04);
+  transform-origin: center;
+  animation: skiff-world-light-open 640ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.skiff-world-shell::after {
+  background:
+    linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0%) 42%, rgb(255 255 255 / 62%) 50%, rgb(255 255 255 / 0%) 58%, transparent 100%),
+    repeating-linear-gradient(0deg, rgb(var(--skiff-world-glow) / 0%) 0 26px, rgb(var(--skiff-world-glow) / 8%) 27px 28px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  transform: translateX(-38%);
+  animation: skiff-world-scan 640ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes skiff-world-light-open {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.04);
+  }
+
+  18% {
+    opacity: 0.95;
+  }
+
+  52% {
+    opacity: 0.62;
+    transform: scaleX(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scaleX(1.08);
+  }
+}
+
+@keyframes skiff-world-scan {
+  0% {
+    opacity: 0;
+    transform: translateX(-38%);
+  }
+
+  26% {
+    opacity: 0.46;
+  }
+
+  78% {
+    opacity: 0;
+    transform: translateX(38%);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(38%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skiff-world-shell::before,
+  .skiff-world-shell::after {
+    display: none;
+  }
+
+  @keyframes skiff-page-enter {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+@keyframes skiff-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (max-width: 720px) {
   body {
     overflow: auto;
+  }
+
+  #root {
+    overflow: visible;
+    border-radius: 0;
   }
 }

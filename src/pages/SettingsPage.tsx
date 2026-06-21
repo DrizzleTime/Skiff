@@ -11,6 +11,7 @@ import {
   Plus,
   Save,
   SlidersHorizontal,
+  Sparkles,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -36,6 +37,8 @@ const languageRowClass =
   "grid min-h-[90px] grid-cols-[minmax(0,1fr)_360px] items-center gap-5 border-b border-[#eeeeee] px-5 py-[18px] last:border-b-0 max-[720px]:grid-cols-1";
 const scanPathRowClass =
   "grid min-h-[120px] grid-cols-[minmax(0,1fr)_minmax(320px,520px)] items-start gap-5 border-b border-[#eeeeee] px-5 py-[18px] last:border-b-0 max-[720px]:grid-cols-1";
+const aiRowClass =
+  "grid min-h-[156px] grid-cols-[minmax(0,1fr)_minmax(320px,520px)] items-start gap-5 border-b border-[#eeeeee] px-5 py-[18px] last:border-b-0 max-[720px]:grid-cols-1";
 const fieldClass = "grid grid-cols-[24px_minmax(0,1fr)] gap-x-2.5 gap-y-1.5";
 
 export function SettingsPage({
@@ -50,6 +53,9 @@ export function SettingsPage({
   const [scanPathInput, setScanPathInput] = useState("");
   const [closeToTray, setCloseToTray] = useState(true);
   const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(false);
+  const [aiEndpoint, setAiEndpoint] = useState("");
+  const [aiApiKey, setAiApiKey] = useState("");
+  const [aiModel, setAiModel] = useState("");
   const [localLanguage, setLocalLanguage] =
     useState<LanguagePreference>(languagePreference);
 
@@ -69,6 +75,9 @@ export function SettingsPage({
       setScanPaths(settings.file_scan_paths ?? []);
       setCloseToTray(settings.close_to_tray);
       setShowAdvancedFeatures(settings.show_advanced_features);
+      setAiEndpoint(settings.ai_endpoint ?? "");
+      setAiApiKey(settings.ai_api_key ?? "");
+      setAiModel(settings.ai_model ?? "");
       setLocalLanguage(settings.language ?? "system");
       setLanguagePreference(settings.language ?? "system");
     } catch (error) {
@@ -86,10 +95,16 @@ export function SettingsPage({
           close_to_tray: closeToTray,
           show_advanced_features: showAdvancedFeatures,
           language: localLanguage,
+          ai_endpoint: aiEndpoint.trim(),
+          ai_api_key: aiApiKey.trim(),
+          ai_model: aiModel.trim(),
         },
       });
       setScanPaths(settings.file_scan_paths ?? []);
       setShowAdvancedFeatures(settings.show_advanced_features);
+      setAiEndpoint(settings.ai_endpoint ?? "");
+      setAiApiKey(settings.ai_api_key ?? "");
+      setAiModel(settings.ai_model ?? "");
       setScanPathInput("");
       setLanguagePreference(localLanguage);
       onSettingsSaved?.(settings.show_advanced_features);
@@ -257,6 +272,44 @@ export function SettingsPage({
             />
             <span className="text-xs text-[#6f6f6f]">MB</span>
           </label>
+        </div>
+
+        <div className={aiRowClass}>
+          <Field className={fieldClass} orientation="horizontal">
+            <Sparkles className="row-span-2 self-start" size={18} />
+            <FieldContent>
+              <FieldTitle className="text-sm">{t("settings.ai.title")}</FieldTitle>
+              <FieldDescription className="text-xs text-[#6f6f6f]">
+                {t("settings.ai.description")}
+              </FieldDescription>
+            </FieldContent>
+          </Field>
+          <div className="grid gap-2">
+            <Input
+              className="h-[38px] w-full rounded-lg border-[#d8d8d8] px-2.5"
+              onChange={(event) => setAiEndpoint(event.target.value)}
+              placeholder={t("settings.ai.endpointPlaceholder")}
+              value={aiEndpoint}
+            />
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2 max-[720px]:grid-cols-1">
+              <Input
+                className="h-[38px] w-full rounded-lg border-[#d8d8d8] px-2.5"
+                onChange={(event) => setAiModel(event.target.value)}
+                placeholder={t("settings.ai.modelPlaceholder")}
+                value={aiModel}
+              />
+              <Input
+                className="h-[38px] w-full rounded-lg border-[#d8d8d8] px-2.5"
+                onChange={(event) => setAiApiKey(event.target.value)}
+                placeholder={t("settings.ai.keyPlaceholder")}
+                type="password"
+                value={aiApiKey}
+              />
+            </div>
+            <p className="text-xs leading-normal text-[#777777]">
+              {t("settings.ai.note")}
+            </p>
+          </div>
         </div>
 
         <div className={settingsRowClass}>

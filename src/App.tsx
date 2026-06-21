@@ -22,6 +22,7 @@ import { JunkCleanupPage } from "./pages/JunkCleanupPage";
 import { LargeFilesPage } from "./pages/LargeFilesPage";
 import { OverviewPage } from "./pages/OverviewPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { SpaceAnalysisPage } from "./pages/SpaceAnalysisPage";
 import type {
   ActiveView,
   AgentCleanupResult,
@@ -35,6 +36,7 @@ import type {
   CleanupTarget,
   DeleteFilesResult,
   DiskStatus,
+  AppMode,
   AppSettings,
   PackageScanResult,
   PackageUninstallResult,
@@ -48,6 +50,7 @@ const MAX_HISTORY_RECORDS = 50;
 
 type PageChromeConfig = {
   actions: ReactNode;
+  sidebar?: ReactNode;
   summary: ReactNode;
 } | null;
 
@@ -114,6 +117,7 @@ function persistCleanupHistory(records: CleanupRunRecord[]) {
 
 function App() {
   const { locale, t } = useI18n();
+  const [appMode, setAppMode] = useState<AppMode>("classic");
   const [activeView, setActiveView] = useState<ActiveView>("overview");
   const [targets, setTargets] = useState<CleanupTarget[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -137,6 +141,7 @@ function App() {
   const updatePageChrome = useCallback((next: PageChromeConfig) => {
     setPageChrome(next);
   }, []);
+  const ignorePageChrome = useCallback(() => undefined, []);
 
   useEffect(() => {
     void refreshDiskStatus();
@@ -213,7 +218,7 @@ function App() {
     targetSummary;
   const releaseRatio = totalSize > 0 ? (selectedSize / totalSize) * 100 : 0;
   const busy = runState === "scanning" || runState === "cleaning";
-  const cleanupView = isJunkCleanupView(activeView);
+  const cleanupView = appMode === "classic" && isJunkCleanupView(activeView);
   const showInspector = cleanupView;
   const canClean = cleanupView && selectedIds.length > 0 && !busy && runState !== "idle";
   const lastRun = historyRecords[0] ?? null;
@@ -360,6 +365,7 @@ function App() {
   }
 
   function selectView(view: ActiveView) {
+    setAppMode("classic");
     setActiveView(view);
     setPageChrome(null);
     if (isJunkCleanupView(view)) {
@@ -369,6 +375,24 @@ function App() {
 
     setSelectedTargetId(null);
   }
+
+  function selectMode(mode: AppMode) {
+    setAppMode(mode);
+    setPageChrome(null);
+    if (mode === "space") {
+      setSelectedTargetId(null);
+    } else if (isJunkCleanupView(activeView)) {
+      setSelectedTargetId(targets.find(shouldShowCleanupTarget)?.id ?? null);
+    }
+  }
+
+  const exitSpaceMode = useCallback(() => {
+    setAppMode("classic");
+    setPageChrome(null);
+    if (isJunkCleanupView(activeView)) {
+      setSelectedTargetId(targets.find(shouldShowCleanupTarget)?.id ?? null);
+    }
+  }, [activeView, targets]);
 
   function sizeForView(view: ActiveView) {
     if (view === "overview") {
@@ -517,11 +541,14 @@ function App() {
 
   const messageText = errorMessage ?? diskError;
   const useSystemTitlebar = appPlatform === "macos";
+  const classicPageChromeChange = appMode === "space" ? ignorePageChrome : updatePageChrome;
 
   return (
     <main
+      data-mode={appMode}
+      key={appMode}
       className={cn(
-        "grid h-full w-full overflow-hidden max-[720px]:h-auto max-[720px]:min-h-screen max-[720px]:overflow-visible",
+        "skiff-world-shell grid h-full w-full overflow-hidden max-[720px]:h-auto max-[720px]:min-h-screen max-[720px]:overflow-visible",
         useSystemTitlebar
           ? "skiff-system-titlebar grid-rows-[minmax(0,1fr)] bg-[#f3f5f7] max-[720px]:grid-rows-[auto]"
           : "grid-rows-[40px_minmax(0,1fr)] rounded-2xl border border-black/10 bg-[#f3f5f7] shadow-[0_24px_80px_rgba(15,23,42,0.16)] max-[720px]:grid-rows-[40px_auto] max-[720px]:rounded-none max-[720px]:border-0 max-[720px]:shadow-none",
@@ -530,19 +557,32 @@ function App() {
       {useSystemTitlebar ? null : <WindowTitlebar />}
 
       <div
+        data-mode={appMode}
         className={cn(
-          "grid min-h-0 min-w-0 grid-cols-[232px_minmax(0,1fr)] overflow-hidden bg-[#f7f8f6] max-[720px]:grid-cols-1 max-[720px]:overflow-visible",
+          "skiff-main-layout grid min-h-0 min-w-0 overflow-hidden bg-[#f7f8f6] max-[720px]:overflow-visible",
           useSystemTitlebar
             ? "bg-[#f3f5f7] max-[720px]:min-h-screen"
             : "max-[720px]:min-h-[calc(100vh-40px)]",
         )}
       >
-        <AppSidebar
-          activeView={activeView}
-          onSelectView={selectView}
-          showAdvancedFeatures={showAdvancedFeatures}
-          sizeForView={sizeForView}
-        />
+        {appMode === "space" ? (
+          <aside className="skiff-space-sidebar min-h-0 min-w-0 overflow-hidden border-r border-black/5 bg-[#f3f5f7] max-[720px]:min-h-[360px] max-[720px]:border-r-0 max-[720px]:border-b max-[720px]:border-black/10">
+            {pageChrome?.sidebar ?? (
+              <div className="grid h-full place-items-center px-5 text-center text-xs leading-normal text-[#7c8490]">
+                {t("space.empty.title")}
+              </div>
+            )}
+          </aside>
+        ) : (
+          <AppSidebar
+            activeView={activeView}
+            mode={appMode}
+            onSelectMode={selectMode}
+            onSelectView={selectView}
+            showAdvancedFeatures={showAdvancedFeatures}
+            sizeForView={sizeForView}
+          />
+        )}
 
         <section className="grid min-h-0 min-w-0 grid-rows-[76px_auto_auto_minmax(0,1fr)_40px] overflow-hidden bg-[#f7f8f6] max-[720px]:min-h-[720px] max-[720px]:overflow-visible">
           <Toolbar
@@ -558,6 +598,8 @@ function App() {
             runState={runState}
             customActions={pageChrome?.actions}
             showActions={cleanupView}
+            title={appMode === "space" ? t("nav.spaceAnalysis") : undefined}
+            subtitle={appMode === "space" ? t("view.spaceAnalysis.description") : undefined}
           />
 
           {cleanupView ? (
@@ -598,55 +640,72 @@ function App() {
                 : "grid-cols-[minmax(0,1fr)]",
             )}
           >
-            <div className="min-h-0 min-w-0 h-full max-h-full overflow-auto max-[720px]:overflow-visible">
-              {activeView === "history" ? (
-                <HistoryPage records={historyRecords} />
-              ) : activeView === "agent" ? (
-                <AgentCleanupPage
-                  initialScanResult={agentScanResult}
-                  onChromeChange={updatePageChrome}
-                  onCleanupComplete={handleAgentCleanupComplete}
-                  onScanComplete={handleAgentScanComplete}
-                />
-              ) : activeView === "developer" ? (
-                <ApplicationCleanupPage
-                  platform={appPlatform}
-                  initialIncludeSystem={packageScanIncludesSystem}
-                  initialScanResult={packageScanResult}
-                  onChromeChange={updatePageChrome}
-                  onScanComplete={handlePackageScanComplete}
-                  onUninstallComplete={handlePackageUninstallComplete}
-                />
-              ) : activeView === "environment" ? (
-                <EnvironmentPage onChromeChange={updatePageChrome} />
-              ) : activeView === "duplicates" ? (
-                <DuplicateFilesPage onDeleteComplete={handleFileDeleteComplete} />
-              ) : activeView === "large-files" ? (
-                <LargeFilesPage onDeleteComplete={handleFileDeleteComplete} />
-              ) : activeView === "settings" ? (
-                <SettingsPage onSettingsSaved={setShowAdvancedFeatures} />
-              ) : activeView === "about" ? (
-                <AboutPage />
-              ) : activeView === "junk" ? (
-                <JunkCleanupPage {...sharedPageProps} />
-              ) : (
-                <OverviewPage
-                  availableCount={availableCount}
-                  diskStatus={diskStatus}
-                  lastCleanupAt={lastCleanupAt}
-                  lastRun={lastRun}
-                  onOpenCleanup={() => selectView("junk")}
-                  onScan={scanTargets}
-                  runState={runState}
-                  selectedCount={selectedIds.length}
-                  selectedFiles={selectedFiles}
-                  selectedIds={selectedIds}
-                  selectedSize={selectedSize}
-                  targets={targets}
-                  totalFiles={totalFiles}
-                  totalSize={totalSize}
-                />
+            <div
+              className={cn(
+                "min-h-0 min-w-0 h-full max-h-full overflow-auto max-[720px]:overflow-visible",
+                appMode === "space" && "overflow-hidden",
               )}
+            >
+              <div className={cn("min-h-full", appMode === "space" && "h-full min-h-0")}>
+                <div className={cn("h-full min-h-0", appMode !== "space" && "hidden")}>
+                  <SpaceAnalysisPage
+                    active={appMode === "space"}
+                    onChromeChange={updatePageChrome}
+                    onExitSpace={exitSpaceMode}
+                  />
+                </div>
+
+                <div className={cn("min-h-full", appMode === "space" && "hidden")}>
+                  {activeView === "history" ? (
+                    <HistoryPage records={historyRecords} />
+                  ) : activeView === "agent" ? (
+                    <AgentCleanupPage
+                      initialScanResult={agentScanResult}
+                      onChromeChange={classicPageChromeChange}
+                      onCleanupComplete={handleAgentCleanupComplete}
+                      onScanComplete={handleAgentScanComplete}
+                    />
+                  ) : activeView === "developer" ? (
+                    <ApplicationCleanupPage
+                      platform={appPlatform}
+                      initialIncludeSystem={packageScanIncludesSystem}
+                      initialScanResult={packageScanResult}
+                      onChromeChange={classicPageChromeChange}
+                      onScanComplete={handlePackageScanComplete}
+                      onUninstallComplete={handlePackageUninstallComplete}
+                    />
+                  ) : activeView === "environment" ? (
+                    <EnvironmentPage onChromeChange={classicPageChromeChange} />
+                  ) : activeView === "duplicates" ? (
+                    <DuplicateFilesPage onDeleteComplete={handleFileDeleteComplete} />
+                  ) : activeView === "large-files" ? (
+                    <LargeFilesPage onDeleteComplete={handleFileDeleteComplete} />
+                  ) : activeView === "settings" ? (
+                    <SettingsPage onSettingsSaved={setShowAdvancedFeatures} />
+                  ) : activeView === "about" ? (
+                    <AboutPage />
+                  ) : activeView === "junk" ? (
+                    <JunkCleanupPage {...sharedPageProps} />
+                  ) : (
+                    <OverviewPage
+                      availableCount={availableCount}
+                      diskStatus={diskStatus}
+                      lastCleanupAt={lastCleanupAt}
+                      lastRun={lastRun}
+                      onOpenCleanup={() => selectView("junk")}
+                      onScan={scanTargets}
+                      runState={runState}
+                      selectedCount={selectedIds.length}
+                      selectedFiles={selectedFiles}
+                      selectedIds={selectedIds}
+                      selectedSize={selectedSize}
+                      targets={targets}
+                      totalFiles={totalFiles}
+                      totalSize={totalSize}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
 
             {showInspector ? (
