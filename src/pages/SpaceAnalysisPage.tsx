@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -26,6 +27,7 @@ import {
   FolderSearch,
   Grid2X2,
   HardDrive,
+  Info,
   ListTree,
   Loader2,
   Search,
@@ -64,6 +66,7 @@ import type {
   SpaceAiChatMessage,
   SpaceAiAnalysisRequest,
   SpaceAiAnalysisResult,
+  SpaceAiPathInfoResult,
   SpaceAiReportItem,
   SpaceAiStreamEvent,
   SpaceAiToolCall,
@@ -80,6 +83,8 @@ function waitForNextFrame() {
 }
 
 const SPACE_AI_STREAM_EVENT = "space-ai-stream";
+const SPACE_TREE_REFERENCE_MIME = "application/x-skiff-space-tree-reference";
+const MAX_AI_CONTEXT_ITEMS = 1200;
 
 type SpacePageChrome = {
   actions: ReactNode;
@@ -107,6 +112,15 @@ type SpaceDeleteToolMessage = {
   confirmationInput: string;
 };
 
+type SpaceReadToolMessage = {
+  id: string;
+  assistantIndex: number;
+  path: string;
+  reason: string;
+  status: "done" | "error";
+  result: SpaceAiPathInfoResult | null;
+};
+
 type SpaceAiChatRenderItem =
   | {
       type: "message";
@@ -117,6 +131,11 @@ type SpaceAiChatRenderItem =
       type: "deleteTool";
       key: string;
       tool: SpaceDeleteToolMessage;
+    }
+  | {
+      type: "readTool";
+      key: string;
+      tool: SpaceReadToolMessage;
     };
 
 export function SpaceAnalysisPage({
@@ -133,7 +152,10 @@ export function SpaceAnalysisPage({
   const [aiResult, setAiResult] = useState<SpaceAiAnalysisResult | null>(null);
   const [aiMessages, setAiMessages] = useState<SpaceAiChatMessage[]>([]);
   const [deleteToolMessages, setDeleteToolMessages] = useState<SpaceDeleteToolMessage[]>([]);
+  const [readToolMessages, setReadToolMessages] = useState<SpaceReadToolMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [aiReferencedPaths, setAiReferencedPaths] = useState<string[]>([]);
+  const [aiInputDragActive, setAiInputDragActive] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [deletingDirectory, setDeletingDirectory] = useState(false);
@@ -142,6 +164,7 @@ export function SpaceAnalysisPage({
   const [directoryConfirmInput, setDirectoryConfirmInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const aiScrollRef = useRef<HTMLDivElement | null>(null);
+  const chatInputRef = useRef<HTMLTextAreaElement | null>(null);
 
   const busy = scanning || analyzing;
   const pageBusy = busy || deletingDirectory;
@@ -151,8 +174,8 @@ export function SpaceAnalysisPage({
     [result],
   );
   const visibleAiChatItems = useMemo(
-    () => buildAiChatRenderItems(aiMessages, deleteToolMessages),
-    [aiMessages, deleteToolMessages],
+    () => buildAiChatRenderItems(aiMessages, deleteToolMessages, readToolMessages),
+    [aiMessages, deleteToolMessages, readToolMessages],
   );
   const hasStreamingAssistantContent =
     analyzing &&
@@ -172,7 +195,9 @@ export function SpaceAnalysisPage({
         setAiResult(null);
         setAiMessages([]);
         setDeleteToolMessages([]);
+        setReadToolMessages([]);
         setChatInput("");
+        setAiReferencedPaths([]);
       }
       try {
         await waitForNextFrame();
@@ -238,7 +263,7 @@ export function SpaceAnalysisPage({
     }
 
     node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
-  }, [aiMessages, deleteToolMessages, analyzing]);
+  }, [aiMessages, deleteToolMessages, readToolMessages, analyzing]);
 
   const chooseFolder = useCallback(async () => {
     if (pageBusy) {
@@ -270,7 +295,7 @@ export function SpaceAnalysisPage({
       setDeleteToolMessages((current) => [
         ...current,
         {
-          id: createDeleteToolMessageId(toolCall),
+          id: createToolMessageId(toolCall),
           assistantIndex,
           item,
           path: toolCall.arguments.path,
@@ -289,6 +314,29 @@ export function SpaceAnalysisPage({
     [t],
   );
 
+  const appendAgentReadToolCall = useCallback(
+    (toolCall: SpaceAiToolCall, assistantIndex: number) => {
+      if (toolCall.name !== "read_path_info") {
+        return false;
+      }
+
+      const toolResult = toolCall.result;
+      setReadToolMessages((current) => [
+        ...current,
+        {
+          id: createToolMessageId(toolCall),
+          assistantIndex,
+          path: toolCall.arguments.path,
+          reason: toolCall.arguments.reason,
+          status: toolResult?.error ? "error" : "done",
+          result: toolResult,
+        },
+      ]);
+      return true;
+    },
+    [],
+  );
+
   const sendAiMessage = useCallback(
     async (content: string, options?: { reset?: boolean }) => {
       const trimmed = content.trim();
@@ -304,6 +352,8 @@ export function SpaceAnalysisPage({
 
       if (options?.reset) {
         setDeleteToolMessages([]);
+        setReadToolMessages([]);
+        setAiReferencedPaths([]);
       }
       setAiMessages(nextMessages);
       setChatInput("");
@@ -311,7 +361,8 @@ export function SpaceAnalysisPage({
       setError(null);
       try {
         await waitForNextFrame();
-        const request = buildAiRequest(result, nextMessages);
+        const requestReferencedPaths = options?.reset ? [] : aiReferencedPaths;
+        const request = buildAiRequest(result, nextMessages, requestReferencedPaths);
         const requestId = createAiStreamRequestId();
         const assistantIndex = nextMessages.length;
         setAiMessages([
@@ -330,11 +381,19 @@ export function SpaceAnalysisPage({
           }
 
           if (event.kind === "done" && event.result) {
+            const hasDeleteToolCall = event.result.tool_calls.some(
+              (toolCall) => toolCall.name === "delete_path",
+            );
+            const hasReadToolCall = event.result.tool_calls.some(
+              (toolCall) => toolCall.name === "read_path_info",
+            );
             const finalContent =
               event.result.content.trim() ||
-              (event.result.tool_calls.length > 0
+              (hasDeleteToolCall
                 ? t("space.toolDelete.agentRequested")
-                : t("space.ai.emptyResponse"));
+                : hasReadToolCall
+                  ? t("space.toolRead.agentUsed")
+                  : t("space.ai.emptyResponse"));
             setAiResult(event.result);
             setAiMessages((current) =>
               updateAssistantMessage(current, assistantIndex, () => finalContent),
@@ -342,6 +401,8 @@ export function SpaceAnalysisPage({
             for (const toolCall of event.result.tool_calls) {
               if (toolCall.name === "delete_path") {
                 appendAgentDeleteToolCall(toolCall, result, assistantIndex);
+              } else if (toolCall.name === "read_path_info") {
+                appendAgentReadToolCall(toolCall, assistantIndex);
               }
             }
           }
@@ -357,7 +418,15 @@ export function SpaceAnalysisPage({
         setAnalyzing(false);
       }
     },
-    [aiMessages, appendAgentDeleteToolCall, pageBusy, result, t],
+    [
+      aiMessages,
+      aiReferencedPaths,
+      appendAgentDeleteToolCall,
+      appendAgentReadToolCall,
+      pageBusy,
+      result,
+      t,
+    ],
   );
 
   const analyzeWithAi = useCallback(async () => {
@@ -386,6 +455,32 @@ export function SpaceAnalysisPage({
       void sendAiMessage(chatInput);
     },
     [chatInput, sendAiMessage],
+  );
+
+  const handleAiReferenceDragOver = useCallback((event: DragEvent<HTMLTextAreaElement>) => {
+    if (!hasSpaceReferenceDragData(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setAiInputDragActive(true);
+  }, []);
+
+  const handleAiReferenceDrop = useCallback(
+    (event: DragEvent<HTMLTextAreaElement>) => {
+      const reference = getSpaceReferenceFromDragEvent(event);
+      setAiInputDragActive(false);
+      if (!reference) {
+        return;
+      }
+
+      event.preventDefault();
+      setChatInput((current) => appendSpaceReferenceText(current, reference, locale, t));
+      setAiReferencedPaths((current) => addUniquePath(current, reference.path));
+      requestAnimationFrame(() => chatInputRef.current?.focus());
+    },
+    [locale, t],
   );
 
   const openDirectoryAction = useCallback(
@@ -630,7 +725,7 @@ export function SpaceAnalysisPage({
                   {visibleAiChatItems.map((item) =>
                     item.type === "message" ? (
                       <AiChatBubble key={item.key} message={item.message} />
-                    ) : (
+                    ) : item.type === "deleteTool" ? (
                       <AiDeleteToolCard
                         deleting={deletingDirectory}
                         key={item.key}
@@ -639,6 +734,8 @@ export function SpaceAnalysisPage({
                         onConfirmationChange={updateDeleteToolConfirmation}
                         tool={item.tool}
                       />
+                    ) : (
+                      <AiReadToolCard key={item.key} tool={item.tool} />
                     ),
                   )}
                   {analyzing && !hasStreamingAssistantContent ? (
@@ -664,11 +761,18 @@ export function SpaceAnalysisPage({
               onSubmit={handleAiSubmit}
             >
               <Textarea
-                className="max-h-28 min-h-10 resize-none border-[#d9dedc] bg-white px-3 py-2 text-[13px] leading-relaxed shadow-none"
+                className={cn(
+                  "max-h-28 min-h-10 resize-none border-[#d9dedc] bg-white px-3 py-2 text-[13px] leading-relaxed shadow-none",
+                  aiInputDragActive && "border-[#145c53] bg-[#f5fbf8]",
+                )}
                 disabled={!result || pageBusy}
                 onChange={(event) => setChatInput(event.target.value)}
+                onDragLeave={() => setAiInputDragActive(false)}
+                onDragOver={handleAiReferenceDragOver}
+                onDrop={handleAiReferenceDrop}
                 onKeyDown={handleAiKeyDown}
                 placeholder={result ? t("space.ai.inputPlaceholder") : t("space.ai.inputDisabled")}
+                ref={chatInputRef}
                 rows={2}
                 value={chatInput}
               />
@@ -1017,6 +1121,115 @@ function AiDeleteToolCard({
   );
 }
 
+function AiReadToolCard({ tool }: { tool: SpaceReadToolMessage }) {
+  const { locale, t } = useI18n();
+  const item = tool.result?.item ?? null;
+  const children = tool.result?.children ?? [];
+  const hasError = tool.status === "error" || Boolean(tool.result?.error);
+  const ItemIcon = item?.kind === "directory" ? Folder : FileText;
+
+  return (
+    <div className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-2">
+      <span className="grid size-7 place-items-center rounded-md bg-[#edf1ef] text-[#145c53]">
+        <Bot size={15} />
+      </span>
+      <div className="min-w-0 rounded-lg border border-[#dfe6e2] bg-white px-3 py-3 text-[13px] text-[#2e3640] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="grid size-7 shrink-0 place-items-center rounded-md bg-[#edf1ef] text-[#145c53]">
+              <Info size={15} />
+            </span>
+            <div className="min-w-0">
+              <strong className="block text-[13px] font-[720] leading-tight text-[#151b22]">
+                {t("space.toolRead.title")}
+              </strong>
+              <span className="mt-1 block text-xs leading-tight text-[#69727d]">
+                {t("space.toolRead.readPathInfo")}
+              </span>
+            </div>
+          </div>
+
+          <span
+            className={cn(
+              "inline-flex h-6 items-center gap-1 rounded-md border px-2 text-[11px] font-[680]",
+              hasError
+                ? "border-[#f2c9c3] bg-[#fff5f3] text-[#b42318]"
+                : "border-[#cde5dc] bg-[#eef8f4] text-[#145c53]",
+            )}
+          >
+            {hasError ? <AlertTriangle size={13} /> : <CheckCircle2 size={13} />}
+            {hasError ? t("space.toolRead.statusError") : t("space.toolRead.statusDone")}
+          </span>
+        </div>
+
+        <div className="mt-3 grid gap-2 text-xs leading-relaxed text-[#4f5965]">
+          <span>
+            {t("space.toolRead.agentReason", {
+              reason: tool.reason || t("common.none"),
+            })}
+          </span>
+          <code className="break-all rounded-md border border-[#ecefed] bg-[#fbfbfa] px-2 py-1 font-mono text-[11px] text-[#151b22]">
+            {tool.path}
+          </code>
+
+          {item ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="inline-flex items-center gap-1 font-[680] text-[#151b22]">
+                <ItemIcon size={13} />
+                {item.name}
+              </span>
+              <span className="font-[680] text-[#151b22]">{formatSize(item.size)}</span>
+              <span>
+                {item.kind === "file"
+                  ? t("space.pathDelete.fileScope")
+                  : t("space.directoryDelete.scope", {
+                      files: formatCount(item.files, locale),
+                      dirs: formatCount(item.dirs + 1, locale),
+                    })}
+              </span>
+            </div>
+          ) : null}
+
+          {children.length > 0 ? (
+            <div className="grid gap-1">
+              <span className="font-[680] text-[#151b22]">
+                {t("space.toolRead.children", {
+                  count: formatCount(children.length, locale),
+                })}
+              </span>
+              <div className="grid gap-1">
+                {children.slice(0, 6).map((child) => {
+                  const ChildIcon = child.kind === "directory" ? Folder : FileText;
+                  return (
+                    <div
+                      className="grid grid-cols-[minmax(0,1fr)_72px] items-center gap-2"
+                      key={child.path}
+                    >
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <ChildIcon className="shrink-0 text-[#69727d]" size={13} />
+                        <span className="overflow-hidden text-ellipsis whitespace-nowrap">
+                          {child.name}
+                        </span>
+                      </span>
+                      <span className="text-right font-[680] text-[#151b22]">
+                        {formatSize(child.size)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {tool.result?.error ? (
+            <span className="font-[680] text-[#b42318]">{tool.result.error}</span>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AiChatBubble({ message }: { message: SpaceAiChatMessage }) {
   const isUser = message.role === "user";
   const Icon = isUser ? UserRound : Bot;
@@ -1237,7 +1450,9 @@ function SpaceTree({
           return (
             <button
               className="grid min-h-[38px] w-full grid-cols-[minmax(220px,1fr)_70px_90px_64px] items-center gap-2 border-0 border-b border-[#eeeeee] bg-white px-3 py-1.5 text-left hover:bg-[#fafafa] [font-variant-numeric:tabular-nums]"
+              draggable
               key={node.id}
+              onDragStart={(event) => handleSpaceTreeNodeDragStart(event, node)}
               onClick={() => toggleNode(node)}
               type="button"
             >
@@ -1309,15 +1524,107 @@ function collectTopItems(root: SpaceScanNode): SpaceAiReportItem[] {
   return items.map(toAiReportItem);
 }
 
+function handleSpaceTreeNodeDragStart(
+  event: DragEvent<HTMLButtonElement>,
+  node: SpaceScanNode,
+) {
+  const item = toAiReportItem(node);
+  event.dataTransfer.effectAllowed = "copy";
+  event.dataTransfer.setData(SPACE_TREE_REFERENCE_MIME, JSON.stringify(item));
+  event.dataTransfer.setData("text/plain", item.path);
+}
+
+function hasSpaceReferenceDragData(event: DragEvent<HTMLElement>) {
+  return Array.from(event.dataTransfer.types).includes(SPACE_TREE_REFERENCE_MIME);
+}
+
+function getSpaceReferenceFromDragEvent(
+  event: DragEvent<HTMLElement>,
+): SpaceAiReportItem | null {
+  const raw = event.dataTransfer.getData(SPACE_TREE_REFERENCE_MIME);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isSpaceAiReportItem(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isSpaceAiReportItem(value: unknown): value is SpaceAiReportItem {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const item = value as Partial<SpaceAiReportItem>;
+  return (
+    typeof item.name === "string" &&
+    typeof item.path === "string" &&
+    (item.kind === "directory" || item.kind === "file") &&
+    typeof item.size === "number" &&
+    typeof item.files === "number" &&
+    typeof item.dirs === "number" &&
+    typeof item.depth === "number"
+  );
+}
+
+function appendSpaceReferenceText(
+  current: string,
+  item: SpaceAiReportItem,
+  locale: ReturnType<typeof useI18n>["locale"],
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  const referenceText = buildSpaceReferenceText(item, locale, t);
+  const base = current.trimEnd();
+  return base ? `${base}\n${referenceText}` : referenceText;
+}
+
+function buildSpaceReferenceText(
+  item: SpaceAiReportItem,
+  locale: ReturnType<typeof useI18n>["locale"],
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  if (item.kind === "file") {
+    return t("space.ai.referenceFile", {
+      name: item.name,
+      size: formatSize(item.size),
+      path: item.path,
+    });
+  }
+
+  return t("space.ai.referenceDirectory", {
+    name: item.name,
+    size: formatSize(item.size),
+    files: formatCount(item.files, locale),
+    dirs: formatCount(item.dirs + 1, locale),
+    path: item.path,
+  });
+}
+
+function addUniquePath(paths: string[], path: string) {
+  return paths.includes(path) ? paths : [...paths, path];
+}
+
 function buildAiChatRenderItems(
   messages: SpaceAiChatMessage[],
   deleteToolMessages: SpaceDeleteToolMessage[],
+  readToolMessages: SpaceReadToolMessage[],
 ): SpaceAiChatRenderItem[] {
-  const toolsByAssistantIndex = new Map<number, SpaceDeleteToolMessage[]>();
+  const deleteToolsByAssistantIndex = new Map<number, SpaceDeleteToolMessage[]>();
   for (const tool of deleteToolMessages) {
-    const tools = toolsByAssistantIndex.get(tool.assistantIndex) ?? [];
+    const tools = deleteToolsByAssistantIndex.get(tool.assistantIndex) ?? [];
     tools.push(tool);
-    toolsByAssistantIndex.set(tool.assistantIndex, tools);
+    deleteToolsByAssistantIndex.set(tool.assistantIndex, tools);
+  }
+
+  const readToolsByAssistantIndex = new Map<number, SpaceReadToolMessage[]>();
+  for (const tool of readToolMessages) {
+    const tools = readToolsByAssistantIndex.get(tool.assistantIndex) ?? [];
+    tools.push(tool);
+    readToolsByAssistantIndex.set(tool.assistantIndex, tools);
   }
 
   const items: SpaceAiChatRenderItem[] = [];
@@ -1330,8 +1637,17 @@ function buildAiChatRenderItems(
       });
     }
 
-    const tools = toolsByAssistantIndex.get(index) ?? [];
-    for (const tool of tools) {
+    const readTools = readToolsByAssistantIndex.get(index) ?? [];
+    for (const tool of readTools) {
+      items.push({
+        type: "readTool",
+        key: `read-tool-${tool.id}`,
+        tool,
+      });
+    }
+
+    const deleteTools = deleteToolsByAssistantIndex.get(index) ?? [];
+    for (const tool of deleteTools) {
       items.push({
         type: "deleteTool",
         key: `delete-tool-${tool.id}`,
@@ -1339,6 +1655,16 @@ function buildAiChatRenderItems(
       });
     }
   });
+
+  for (const tool of readToolMessages) {
+    if (tool.assistantIndex >= messages.length) {
+      items.push({
+        type: "readTool",
+        key: `read-tool-${tool.id}`,
+        tool,
+      });
+    }
+  }
 
   for (const tool of deleteToolMessages) {
     if (tool.assistantIndex >= messages.length) {
@@ -1366,6 +1692,7 @@ function findScannedItem(root: SpaceScanNode, path: string): SpaceAiReportItem |
 function buildAiRequest(
   result: SpaceScanResult,
   messages: SpaceAiChatMessage[],
+  referencedPaths: string[],
 ): SpaceAiAnalysisRequest {
   return {
     path: result.root.path,
@@ -1374,8 +1701,46 @@ function buildAiRequest(
     total_dirs: result.total_dirs,
     unreadable_entries: result.unreadable_entries,
     top_items: collectTopItems(result.root).slice(0, 40),
+    items: collectAiContextItems(result.root, referencedPaths),
     messages,
   };
+}
+
+function collectAiContextItems(
+  root: SpaceScanNode,
+  referencedPaths: string[],
+): SpaceAiReportItem[] {
+  const nodes = flattenSpaceNodes(root);
+  const referencedPathSet = new Set(referencedPaths);
+  const selected = new Map<string, SpaceAiReportItem>();
+
+  for (const node of nodes.slice(0, MAX_AI_CONTEXT_ITEMS)) {
+    const item = toAiReportItem(node);
+    selected.set(item.path, item);
+  }
+
+  for (const node of nodes) {
+    if (!referencedPathSet.has(node.path) && !hasReferencedParent(node.path, referencedPathSet)) {
+      continue;
+    }
+
+    const item = toAiReportItem(node);
+    selected.set(item.path, item);
+  }
+
+  return Array.from(selected.values());
+}
+
+function hasReferencedParent(path: string, referencedPaths: Set<string>) {
+  return referencedPaths.has(parentPath(path));
+}
+
+function parentPath(path: string) {
+  const normalized = path.replace(/[/\\]+$/, "");
+  const slashIndex = normalized.lastIndexOf("/");
+  const backslashIndex = normalized.lastIndexOf("\\");
+  const index = Math.max(slashIndex, backslashIndex);
+  return index > 0 ? normalized.slice(0, index) : "";
 }
 
 function flattenSpaceNodes(root: SpaceScanNode) {
@@ -1406,7 +1771,7 @@ function createAiStreamRequestId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function createDeleteToolMessageId(toolCall: SpaceAiToolCall) {
+function createToolMessageId(toolCall: SpaceAiToolCall) {
   const base = toolCall.id.trim() || toolCall.name;
   return `${base}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }

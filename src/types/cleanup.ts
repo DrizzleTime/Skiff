@@ -361,6 +361,7 @@ export type SpaceAiAnalysisRequest = {
   total_dirs: number;
   unreadable_entries: number;
   top_items: SpaceAiReportItem[];
+  items: SpaceAiReportItem[];
   messages: SpaceAiChatMessage[];
 };
 
@@ -384,9 +385,16 @@ export type SpaceAiToolCall = {
   name: "delete_path" | string;
   arguments: {
     path: string;
-    mode: SpaceDirectoryDeleteMode;
+    mode?: SpaceDirectoryDeleteMode | null;
     reason: string;
   };
+  result: SpaceAiPathInfoResult | null;
+};
+
+export type SpaceAiPathInfoResult = {
+  item: SpaceAiReportItem | null;
+  children: SpaceAiReportItem[];
+  error: string | null;
 };
 
 export type SpaceDirectoryDeleteMode = "trash" | "permanent";

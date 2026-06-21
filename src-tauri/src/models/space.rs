@@ -44,6 +44,8 @@ pub struct SpaceAiAnalysisRequest {
     pub unreadable_entries: u64,
     pub top_items: Vec<SpaceAiReportItem>,
     #[serde(default)]
+    pub items: Vec<SpaceAiReportItem>,
+    #[serde(default)]
     pub messages: Vec<SpaceAiChatMessage>,
 }
 
@@ -86,13 +88,21 @@ pub struct SpaceAiToolCall {
     pub id: String,
     pub name: String,
     pub arguments: SpaceAiToolArguments,
+    pub result: Option<SpaceAiPathInfoResult>,
 }
 
 #[derive(Clone, Serialize)]
 pub struct SpaceAiToolArguments {
     pub path: String,
-    pub mode: String,
+    pub mode: Option<String>,
     pub reason: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct SpaceAiPathInfoResult {
+    pub item: Option<SpaceAiReportItem>,
+    pub children: Vec<SpaceAiReportItem>,
+    pub error: Option<String>,
 }
 
 #[derive(Deserialize)]
