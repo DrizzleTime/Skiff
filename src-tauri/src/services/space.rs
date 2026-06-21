@@ -1,4 +1,5 @@
 use crate::models::{
+    SpaceDirectoryDeleteMode, SpaceDirectoryDeleteRequest, SpaceDirectoryDeleteResult,
     SpaceScanNode, SpaceScanRequest, SpaceScanResult, DEFAULT_SPACE_SCAN_CHILDREN,
     DEFAULT_SPACE_SCAN_DEPTH,
 };
@@ -47,6 +48,70 @@ pub fn scan_directory_space(
         unreadable_entries: stats.unreadable_entries,
         truncated_dirs: stats.truncated_dirs,
     })
+}
+
+pub fn delete_space_directory(
+    home: &Path,
+    request: SpaceDirectoryDeleteRequest,
+) -> Result<SpaceDirectoryDeleteResult, String> {
+    let home = home
+        .canonicalize()
+        .map_err(|err| format!("无法校验 HOME 目录：{err}"))?;
+    let path = PathBuf::from(request.path.trim());
+    if !path.is_absolute() {
+        return Err("只能删除绝对路径目录。".to_string());
+    }
+
+    let metadata = fs::symlink_metadata(&path).map_err(|err| format!("读取目录失败：{err}"))?;
+    if metadata.file_type().is_symlink() {
+        return Err("不能删除符号链接目录。".to_string());
+    }
+    if !metadata.file_type().is_dir() {
+        return Err("只能删除目录。".to_string());
+    }
+
+    let canonical_path = path
+        .canonicalize()
+        .map_err(|err| format!("校验目录路径失败：{err}"))?;
+    if !canonical_path.starts_with(&home) {
+        return Err("只能删除当前用户目录下的目录。".to_string());
+    }
+    if canonical_path == home {
+        return Err("不能删除当前用户 HOME 目录。".to_string());
+    }
+
+    let stats = collect_delete_stats(&canonical_path)?;
+    let path_text = canonical_path.display().to_string();
+
+    match request.mode {
+        SpaceDirectoryDeleteMode::Trash => {
+            trash::delete(&canonical_path).map_err(|err| format!("移入回收站失败：{err}"))?;
+            Ok(SpaceDirectoryDeleteResult {
+                path: path_text,
+                released_size: stats.size,
+                deleted_files: stats.files,
+                deleted_dirs: stats.dirs,
+                trashed: true,
+                permanent: false,
+            })
+        }
+        SpaceDirectoryDeleteMode::Permanent => {
+            let expected_confirmation = permanent_delete_confirmation(&canonical_path);
+            if request.confirmation.as_deref() != Some(expected_confirmation.as_str()) {
+                return Err("永久删除需要输入完整确认短语。".to_string());
+            }
+
+            fs::remove_dir_all(&canonical_path).map_err(|err| format!("永久删除失败：{err}"))?;
+            Ok(SpaceDirectoryDeleteResult {
+                path: path_text,
+                released_size: stats.size,
+                deleted_files: stats.files,
+                deleted_dirs: stats.dirs,
+                trashed: false,
+                permanent: true,
+            })
+        }
+    }
 }
 
 fn resolve_scan_path(home: &Path, path_text: Option<&str>) -> Result<PathBuf, String> {
@@ -254,6 +319,53 @@ fn display_name(path: &Path) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
+#[derive(Default)]
+struct DeleteStats {
+    size: u64,
+    files: u64,
+    dirs: u64,
+}
+
+fn collect_delete_stats(path: &Path) -> Result<DeleteStats, String> {
+    let metadata = fs::symlink_metadata(path).map_err(|err| format!("读取目录失败：{err}"))?;
+    if metadata.file_type().is_symlink() {
+        return Ok(DeleteStats {
+            size: metadata.len(),
+            files: 1,
+            dirs: 0,
+        });
+    }
+    if metadata.file_type().is_file() {
+        return Ok(DeleteStats {
+            size: metadata.len(),
+            files: 1,
+            dirs: 0,
+        });
+    }
+    if !metadata.file_type().is_dir() {
+        return Ok(DeleteStats::default());
+    }
+
+    let mut stats = DeleteStats {
+        size: 0,
+        files: 0,
+        dirs: 1,
+    };
+    for entry in fs::read_dir(path).map_err(|err| format!("读取目录内容失败：{err}"))? {
+        let entry = entry.map_err(|err| format!("读取目录项失败：{err}"))?;
+        let child_stats = collect_delete_stats(&entry.path())?;
+        stats.size = stats.size.saturating_add(child_stats.size);
+        stats.files = stats.files.saturating_add(child_stats.files);
+        stats.dirs = stats.dirs.saturating_add(child_stats.dirs);
+    }
+
+    Ok(stats)
+}
+
+fn permanent_delete_confirmation(path: &Path) -> String {
+    format!("DELETE {}", path.display())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,5 +413,52 @@ mod tests {
         );
 
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn permanent_delete_requires_confirmation_phrase() {
+        let dir = tempdir().expect("tempdir");
+        let target = dir.path().join("cache");
+        fs::create_dir(&target).expect("target dir");
+
+        let result = delete_space_directory(
+            dir.path(),
+            SpaceDirectoryDeleteRequest {
+                path: target.display().to_string(),
+                mode: SpaceDirectoryDeleteMode::Permanent,
+                confirmation: Some("DELETE wrong-path".to_string()),
+            },
+        );
+
+        assert!(result.is_err());
+        assert!(target.exists());
+    }
+
+    #[test]
+    fn permanent_delete_removes_user_directory() {
+        let dir = tempdir().expect("tempdir");
+        let target = dir.path().join("cache");
+        let nested = target.join("nested");
+        fs::create_dir_all(&nested).expect("nested dir");
+        fs::write(target.join("a.txt"), b"abcd").expect("root file");
+        fs::write(nested.join("b.txt"), b"ef").expect("nested file");
+        let target = target.canonicalize().expect("canonical target");
+
+        let result = delete_space_directory(
+            dir.path(),
+            SpaceDirectoryDeleteRequest {
+                path: target.display().to_string(),
+                mode: SpaceDirectoryDeleteMode::Permanent,
+                confirmation: Some(permanent_delete_confirmation(&target)),
+            },
+        )
+        .expect("delete directory");
+
+        assert!(!target.exists());
+        assert_eq!(result.released_size, 6);
+        assert_eq!(result.deleted_files, 2);
+        assert_eq!(result.deleted_dirs, 2);
+        assert!(result.permanent);
+        assert!(!result.trashed);
     }
 }

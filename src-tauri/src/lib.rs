@@ -5,10 +5,11 @@ mod services;
 mod tray;
 
 use commands::{
-    analyze_directory_space, clean_agent_threads, delete_user_files, get_app_info, get_disk_status,
-    get_settings, list_installed_packages, load_package_icons, run_cleanup, save_env_inventory,
-    save_settings, scan_agent_threads, scan_cleanup_targets, scan_directory_space,
-    scan_duplicate_files, scan_env_inventory, scan_large_files, uninstall_packages,
+    analyze_directory_space, clean_agent_threads, delete_space_directory, delete_user_files,
+    get_app_info, get_disk_status, get_settings, list_installed_packages, load_package_icons,
+    run_cleanup, save_env_inventory, save_settings, scan_agent_threads, scan_cleanup_targets,
+    scan_directory_space, scan_duplicate_files, scan_env_inventory, scan_large_files,
+    uninstall_packages,
 };
 use services::{settings::read_settings, system::home_dir};
 use tray::setup_tray;
@@ -47,6 +48,7 @@ pub fn run() {
             delete_user_files,
             scan_directory_space,
             analyze_directory_space,
+            delete_space_directory,
             get_settings,
             save_settings,
             scan_env_inventory,

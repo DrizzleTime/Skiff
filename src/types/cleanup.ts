@@ -369,3 +369,14 @@ export type SpaceAiAnalysisResult = {
   model: string;
   content: string;
 };
+
+export type SpaceDirectoryDeleteMode = "trash" | "permanent";
+
+export type SpaceDirectoryDeleteResult = {
+  path: string;
+  released_size: number;
+  deleted_files: number;
+  deleted_dirs: number;
+  trashed: boolean;
+  permanent: boolean;
+};

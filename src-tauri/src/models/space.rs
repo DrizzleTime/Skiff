@@ -70,3 +70,27 @@ pub struct SpaceAiAnalysisResult {
     pub model: String,
     pub content: String,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpaceDirectoryDeleteMode {
+    Trash,
+    Permanent,
+}
+
+#[derive(Deserialize)]
+pub struct SpaceDirectoryDeleteRequest {
+    pub path: String,
+    pub mode: SpaceDirectoryDeleteMode,
+    pub confirmation: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct SpaceDirectoryDeleteResult {
+    pub path: String,
+    pub released_size: u64,
+    pub deleted_files: u64,
+    pub deleted_dirs: u64,
+    pub trashed: bool,
+    pub permanent: bool,
+}

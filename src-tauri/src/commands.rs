@@ -6,7 +6,8 @@ use crate::{
         DuplicateFileScanResult, EnvInventory, EnvInventorySaveRequest, EnvInventorySaveResult,
         LargeFileScanRequest, LargeFileScanResult, PackageIconRequest, PackageIconResult,
         PackageScanRequest, PackageScanResult, PackageUninstallRequest, PackageUninstallResult,
-        SpaceAiAnalysisRequest, SpaceAiAnalysisResult, SpaceScanRequest, SpaceScanResult,
+        SpaceAiAnalysisRequest, SpaceAiAnalysisResult, SpaceDirectoryDeleteRequest,
+        SpaceDirectoryDeleteResult, SpaceScanRequest, SpaceScanResult,
         DEFAULT_DUPLICATE_GROUP_LIMIT, DEFAULT_LARGE_FILE_LIMIT,
     },
     services::{
@@ -30,7 +31,10 @@ use crate::{
             uninstall_selected_packages,
         },
         settings::{read_settings, write_settings},
-        space::scan_directory_space as scan_directory_space_items,
+        space::{
+            delete_space_directory as delete_space_directory_item,
+            scan_directory_space as scan_directory_space_items,
+        },
         space_ai::analyze_space_report,
         system::{home_dir, Platform},
     },
@@ -147,6 +151,16 @@ pub async fn analyze_directory_space(
     let home = home_dir()?;
     let settings = read_settings(&home).unwrap_or_default();
     analyze_space_report(&settings, request).await
+}
+
+#[tauri::command]
+pub async fn delete_space_directory(
+    request: SpaceDirectoryDeleteRequest,
+) -> Result<SpaceDirectoryDeleteResult, String> {
+    let home = home_dir()?;
+    tauri::async_runtime::spawn_blocking(move || delete_space_directory_item(&home, request))
+        .await
+        .map_err(|err| format!("目录删除任务失败：{err}"))?
 }
 
 #[tauri::command]

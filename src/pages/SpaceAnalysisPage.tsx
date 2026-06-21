@@ -27,7 +27,9 @@ import {
   ListTree,
   Search,
   Send,
+  ShieldAlert,
   Sparkles,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import { ActivityPanel } from "../components/cleanup/ActivityPanel";
@@ -41,6 +43,15 @@ import {
 import { MetricCell } from "../components/cleanup/MetricCell";
 import { SummaryMetricStrip } from "../components/cleanup/SummaryStrip";
 import { Button } from "../components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { formatCount, formatSize } from "../lib/format";
 import { useI18n } from "../lib/i18n";
@@ -50,6 +61,8 @@ import type {
   SpaceAiAnalysisRequest,
   SpaceAiAnalysisResult,
   SpaceAiReportItem,
+  SpaceDirectoryDeleteMode,
+  SpaceDirectoryDeleteResult,
   SpaceScanNode,
   SpaceScanResult,
 } from "../types/cleanup";
@@ -64,6 +77,11 @@ type SpacePageChrome = {
   actions: ReactNode;
   sidebar: ReactNode;
   summary: ReactNode;
+};
+
+type PendingDirectoryAction = {
+  item: SpaceAiReportItem;
+  mode: SpaceDirectoryDeleteMode;
 };
 
 export function SpaceAnalysisPage({
@@ -82,19 +100,24 @@ export function SpaceAnalysisPage({
   const [chatInput, setChatInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [deletingDirectory, setDeletingDirectory] = useState(false);
+  const [pendingDirectoryAction, setPendingDirectoryAction] =
+    useState<PendingDirectoryAction | null>(null);
+  const [directoryConfirmInput, setDirectoryConfirmInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const aiScrollRef = useRef<HTMLDivElement | null>(null);
 
   const busy = scanning || analyzing;
-  const canSendAiMessage = Boolean(result && chatInput.trim() && !busy);
+  const pageBusy = busy || deletingDirectory;
+  const canSendAiMessage = Boolean(result && chatInput.trim() && !pageBusy);
   const topItems = useMemo(
     () => (result ? collectTopItems(result.root).slice(0, 8) : []),
     [result],
   );
 
   const scanPath = useCallback(
-    async (path?: string) => {
-      if (busy) {
+    async (path?: string, options?: { force?: boolean }) => {
+      if (pageBusy && !options?.force) {
         return;
       }
 
@@ -118,7 +141,7 @@ export function SpaceAnalysisPage({
         setScanning(false);
       }
     },
-    [busy],
+    [pageBusy],
   );
 
   useEffect(() => {
@@ -170,7 +193,7 @@ export function SpaceAnalysisPage({
   }, [aiMessages, analyzing]);
 
   const chooseFolder = useCallback(async () => {
-    if (busy) {
+    if (pageBusy) {
       return;
     }
 
@@ -187,12 +210,12 @@ export function SpaceAnalysisPage({
     } catch (chooseError) {
       setError(String(chooseError));
     }
-  }, [busy, scanPath, t]);
+  }, [pageBusy, scanPath, t]);
 
   const sendAiMessage = useCallback(
     async (content: string, options?: { reset?: boolean }) => {
       const trimmed = content.trim();
-      if (!result || busy || !trimmed) {
+      if (!result || pageBusy || !trimmed) {
         return;
       }
 
@@ -226,16 +249,16 @@ export function SpaceAnalysisPage({
         setAnalyzing(false);
       }
     },
-    [aiMessages, busy, result],
+    [aiMessages, pageBusy, result],
   );
 
   const analyzeWithAi = useCallback(async () => {
-    if (!result || busy) {
+    if (!result || pageBusy) {
       return;
     }
 
     await sendAiMessage(t("space.ai.initialPrompt"), { reset: true });
-  }, [busy, result, sendAiMessage, t]);
+  }, [pageBusy, result, sendAiMessage, t]);
 
   const handleAiSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -257,6 +280,77 @@ export function SpaceAnalysisPage({
     [chatInput, sendAiMessage],
   );
 
+  const openDirectoryAction = useCallback(
+    (item: SpaceAiReportItem, mode: SpaceDirectoryDeleteMode) => {
+      if (pageBusy || item.kind !== "directory") {
+        return;
+      }
+
+      setDirectoryConfirmInput("");
+      setPendingDirectoryAction({ item, mode });
+    },
+    [pageBusy],
+  );
+
+  const closeDirectoryAction = useCallback(() => {
+    if (deletingDirectory) {
+      return;
+    }
+
+    setPendingDirectoryAction(null);
+    setDirectoryConfirmInput("");
+  }, [deletingDirectory]);
+
+  const confirmDirectoryAction = useCallback(async () => {
+    if (!pendingDirectoryAction || !result || deletingDirectory) {
+      return;
+    }
+
+    const confirmation =
+      pendingDirectoryAction.mode === "permanent" ? directoryConfirmInput : null;
+    if (
+      pendingDirectoryAction.mode === "permanent" &&
+      confirmation !== permanentDeleteConfirmation(pendingDirectoryAction.item.path)
+    ) {
+      return;
+    }
+
+    setDeletingDirectory(true);
+    setError(null);
+    try {
+      await waitForNextFrame();
+      await invoke<SpaceDirectoryDeleteResult>("delete_space_directory", {
+        request: {
+          path: pendingDirectoryAction.item.path,
+          mode: pendingDirectoryAction.mode,
+          confirmation,
+        },
+      });
+      setPendingDirectoryAction(null);
+      setDirectoryConfirmInput("");
+      await scanPath(result.root.path, { force: true });
+    } catch (deleteError) {
+      setError(String(deleteError));
+    } finally {
+      setDeletingDirectory(false);
+    }
+  }, [
+    deletingDirectory,
+    directoryConfirmInput,
+    pendingDirectoryAction,
+    result,
+    scanPath,
+  ]);
+
+  const directoryActionIsPermanent = pendingDirectoryAction?.mode === "permanent";
+  const directoryConfirmationPhrase = pendingDirectoryAction
+    ? permanentDeleteConfirmation(pendingDirectoryAction.item.path)
+    : "";
+  const canConfirmDirectoryAction =
+    Boolean(pendingDirectoryAction) &&
+    !deletingDirectory &&
+    (!directoryActionIsPermanent || directoryConfirmInput === directoryConfirmationPhrase);
+
   const aiSubtitle = useMemo(() => {
     if (aiResult) {
       return `${aiResult.provider} · ${aiResult.model}`;
@@ -268,15 +362,15 @@ export function SpaceAnalysisPage({
   const toolbarActions = useMemo(
     () => (
       <>
-        <Button disabled={busy} onClick={chooseFolder} variant="outline">
+        <Button disabled={pageBusy} onClick={chooseFolder} variant="outline">
           <FolderOpen size={16} />
           {t("space.chooseFolder")}
         </Button>
-        <Button disabled={busy} onClick={() => void scanPath()} variant="outline">
+        <Button disabled={pageBusy} onClick={() => void scanPath()} variant="outline">
           <Search className={scanning ? "animate-spin" : undefined} size={16} />
           {result ? t("actions.rescan") : t("actions.startScan")}
         </Button>
-        <Button disabled={!result || busy} onClick={() => void analyzeWithAi()}>
+        <Button disabled={!result || pageBusy} onClick={() => void analyzeWithAi()}>
           <Sparkles className={analyzing ? "animate-spin" : undefined} size={16} />
           {analyzing ? t("space.ai.running") : t("space.ai.run")}
         </Button>
@@ -286,7 +380,7 @@ export function SpaceAnalysisPage({
         </Button>
       </>
     ),
-    [analyzeWithAi, analyzing, busy, chooseFolder, onExitSpace, result, scanPath, scanning, t],
+    [analyzeWithAi, analyzing, chooseFolder, onExitSpace, pageBusy, result, scanPath, scanning, t],
   );
 
   const chromeSummary = useMemo(
@@ -375,7 +469,7 @@ export function SpaceAnalysisPage({
             >
               <Textarea
                 className="max-h-28 min-h-10 resize-none border-[#d9dedc] bg-white px-3 py-2 text-[13px] leading-relaxed shadow-none"
-                disabled={!result || busy}
+                disabled={!result || pageBusy}
                 onChange={(event) => setChatInput(event.target.value)}
                 onKeyDown={handleAiKeyDown}
                 placeholder={result ? t("space.ai.inputPlaceholder") : t("space.ai.inputDisabled")}
@@ -406,7 +500,7 @@ export function SpaceAnalysisPage({
             {topItems.length > 0 ? (
               topItems.map((item) => (
                 <div
-                  className="grid min-h-[44px] grid-cols-[minmax(0,1fr)_78px] items-center gap-2 border-b border-[#eeeeee] px-4 py-2 last:border-b-0"
+                  className="grid min-h-[44px] grid-cols-[minmax(0,1fr)_78px_68px] items-center gap-2 border-b border-[#eeeeee] px-4 py-2 last:border-b-0"
                   key={item.path}
                 >
                   <div className="min-w-0">
@@ -420,6 +514,32 @@ export function SpaceAnalysisPage({
                   <span className="text-right text-[12px] font-[680] text-[#151b22]">
                     {formatSize(item.size)}
                   </span>
+                  <span className="flex justify-end gap-1">
+                    {item.kind === "directory" ? (
+                      <>
+                        <Button
+                          aria-label={t("space.directoryAction.trash")}
+                          className="size-7 px-0"
+                          disabled={pageBusy}
+                          onClick={() => openDirectoryAction(item, "trash")}
+                          title={t("space.directoryAction.trash")}
+                          variant="outline"
+                        >
+                          <Trash2 size={13} />
+                        </Button>
+                        <Button
+                          aria-label={t("space.directoryAction.permanent")}
+                          className="size-7 px-0"
+                          disabled={pageBusy}
+                          onClick={() => openDirectoryAction(item, "permanent")}
+                          title={t("space.directoryAction.permanent")}
+                          variant="destructive"
+                        >
+                          <ShieldAlert size={13} />
+                        </Button>
+                      </>
+                    ) : null}
+                  </span>
                 </div>
               ))
             ) : (
@@ -430,6 +550,104 @@ export function SpaceAnalysisPage({
           </div>
         </ResultPanel>
       </div>
+
+      <Dialog
+        open={Boolean(pendingDirectoryAction)}
+        onOpenChange={(open) => {
+          if (!open) {
+            closeDirectoryAction();
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {directoryActionIsPermanent
+                ? t("space.directoryDelete.permanentTitle")
+                : t("space.directoryDelete.trashTitle")}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingDirectoryAction
+                ? directoryActionIsPermanent
+                  ? t("space.directoryDelete.permanentDescription", {
+                      name: pendingDirectoryAction.item.name,
+                      size: formatSize(pendingDirectoryAction.item.size),
+                    })
+                  : t("space.directoryDelete.trashDescription", {
+                      name: pendingDirectoryAction.item.name,
+                      size: formatSize(pendingDirectoryAction.item.size),
+                    })
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+
+          {pendingDirectoryAction ? (
+            <div className="grid gap-3">
+              <div className="grid gap-1.5 rounded-lg border border-[#efd6b7] bg-[#fffaf2] p-3 text-xs text-[#755118]">
+                <div className="flex items-center gap-2 font-semibold">
+                  <ShieldAlert size={15} />
+                  <span>
+                    {directoryActionIsPermanent
+                      ? t("space.directoryDelete.permanentWarning")
+                      : t("space.directoryDelete.trashWarning")}
+                  </span>
+                </div>
+                <span>
+                  {t("space.directoryDelete.scope", {
+                    files: formatCount(pendingDirectoryAction.item.files, locale),
+                    dirs: formatCount(pendingDirectoryAction.item.dirs + 1, locale),
+                  })}
+                </span>
+                <code className="break-all rounded-md bg-white/75 px-2 py-1 font-mono text-[11px]">
+                  {pendingDirectoryAction.item.path}
+                </code>
+              </div>
+
+              {directoryActionIsPermanent ? (
+                <div className="grid gap-2">
+                  <span className="text-xs font-semibold text-[#3b3f45]">
+                    {t("space.directoryDelete.typePhrase")}
+                  </span>
+                  <code className="break-all rounded-md border border-[#e5e5e5] bg-[#f7f7f7] px-2 py-1 font-mono text-[11px] text-[#111111]">
+                    {directoryConfirmationPhrase}
+                  </code>
+                  <Input
+                    aria-label={t("space.directoryDelete.confirmationInput")}
+                    disabled={deletingDirectory}
+                    onChange={(event) => setDirectoryConfirmInput(event.target.value)}
+                    placeholder={t("space.directoryDelete.confirmationInput")}
+                    value={directoryConfirmInput}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button disabled={deletingDirectory} onClick={closeDirectoryAction} variant="outline">
+              {t("actions.cancel")}
+            </Button>
+            <Button
+              disabled={!canConfirmDirectoryAction}
+              onClick={() => void confirmDirectoryAction()}
+              variant={directoryActionIsPermanent ? "destructive" : "default"}
+            >
+              {directoryActionIsPermanent ? (
+                <ShieldAlert className={deletingDirectory ? "animate-spin" : undefined} size={15} />
+              ) : (
+                <Trash2 className={deletingDirectory ? "animate-spin" : undefined} size={15} />
+              )}
+              {deletingDirectory
+                ? directoryActionIsPermanent
+                  ? t("common.deleting")
+                  : t("common.movingToTrash")
+                : directoryActionIsPermanent
+                  ? t("space.directoryAction.permanent")
+                  : t("space.directoryAction.trash")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PageSurface>
   );
 }
@@ -605,7 +823,7 @@ function SpaceTree({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="grid min-h-8 grid-cols-[minmax(120px,1fr)_58px_76px_52px] items-center gap-2 border-b border-[#eeeeee] bg-[#fbfbfa] px-3 text-[11px] font-[680] text-[#7c8490]">
+      <div className="grid min-h-8 w-full grid-cols-[minmax(220px,1fr)_70px_90px_64px] items-center gap-2 border-b border-[#eeeeee] bg-[#fbfbfa] px-3 text-[11px] font-[680] text-[#7c8490] [font-variant-numeric:tabular-nums]">
         <span>{t("table.name")}</span>
         <span className="text-right">{t("space.tree.parentPercent")}</span>
         <span className="text-right">{t("inspector.size")}</span>
@@ -620,24 +838,25 @@ function SpaceTree({
 
           return (
             <button
-              className="grid min-h-[38px] grid-cols-[minmax(120px,1fr)_58px_76px_52px] items-center gap-2 border-0 border-b border-[#eeeeee] bg-white px-3 py-1.5 text-left hover:bg-[#fafafa]"
+              className="grid min-h-[38px] w-full grid-cols-[minmax(220px,1fr)_70px_90px_64px] items-center gap-2 border-0 border-b border-[#eeeeee] bg-white px-3 py-1.5 text-left hover:bg-[#fafafa] [font-variant-numeric:tabular-nums]"
               key={node.id}
               onClick={() => toggleNode(node)}
               type="button"
             >
-              <span
-                className="grid min-w-0 grid-cols-[16px_22px_minmax(0,1fr)] items-center gap-1.5"
-                style={{ paddingLeft: `${Math.min(node.depth, 8) * 14}px` }}
-              >
+              <span className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+                <span
+                  className="shrink-0"
+                  style={{ width: `${Math.min(node.depth, 8) * 14}px` }}
+                />
                 {node.children.length > 0 ? (
-                  <ToggleIcon size={13} strokeWidth={2.1} />
+                  <ToggleIcon className="shrink-0" size={13} strokeWidth={2.1} />
                 ) : (
-                  <span />
+                  <span className="size-[13px] shrink-0" />
                 )}
-                <span className="grid size-[22px] place-items-center rounded-md bg-[#f2f5f4] text-[#145c53]">
+                <span className="grid size-[22px] shrink-0 place-items-center rounded-md bg-[#f2f5f4] text-[#145c53]">
                   <Icon size={14} strokeWidth={1.9} />
                 </span>
-                <span className="min-w-0">
+                <span className="min-w-0 flex-1">
                   <strong className="block overflow-hidden text-ellipsis whitespace-nowrap text-[12px] font-[680] leading-tight text-[#151b22]">
                     {node.name}
                   </strong>
@@ -725,4 +944,8 @@ function toAiReportItem(node: SpaceScanNode): SpaceAiReportItem {
     dirs: node.dirs,
     depth: node.depth,
   };
+}
+
+function permanentDeleteConfirmation(path: string) {
+  return `DELETE ${path}`;
 }
