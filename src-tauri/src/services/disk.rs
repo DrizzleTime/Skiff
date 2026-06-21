@@ -1,6 +1,8 @@
 use crate::models::DiskStatus;
 use fs2::available_space;
-use std::{path::Path, process::Command};
+use std::path::Path;
+#[cfg(not(windows))]
+use std::process::Command;
 
 pub fn read_disk_status(path: &Path) -> Result<DiskStatus, String> {
     let total = fs2::total_space(path).map_err(|err| format!("读取磁盘总容量失败：{err}"))?;
@@ -54,7 +56,7 @@ fn parse_df_mount_point(output: &str) -> Option<String> {
     (parts.len() > mount_index).then(|| parts[mount_index..].join(" "))
 }
 
-#[cfg(test)]
+#[cfg(all(test, not(windows)))]
 mod tests {
     use super::*;
 
