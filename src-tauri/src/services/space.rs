@@ -3,6 +3,7 @@ use crate::models::{
     SpaceScanNode, SpaceScanRequest, SpaceScanResult, DEFAULT_SPACE_SCAN_CHILDREN,
     DEFAULT_SPACE_SCAN_DEPTH,
 };
+use rayon::prelude::*;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -11,11 +12,28 @@ use std::{
 const NODE_KIND_DIR: &str = "directory";
 const NODE_KIND_FILE: &str = "file";
 
-#[derive(Default)]
+#[derive(Clone, Copy, Default)]
 struct SpaceScanStats {
     inspected_entries: u64,
     unreadable_entries: u64,
     truncated_dirs: u64,
+}
+
+impl SpaceScanStats {
+    fn merge(&mut self, other: SpaceScanStats) {
+        self.inspected_entries = self
+            .inspected_entries
+            .saturating_add(other.inspected_entries);
+        self.unreadable_entries = self
+            .unreadable_entries
+            .saturating_add(other.unreadable_entries);
+        self.truncated_dirs = self.truncated_dirs.saturating_add(other.truncated_dirs);
+    }
+}
+
+struct SpaceScanOutput {
+    node: SpaceScanNode,
+    stats: SpaceScanStats,
 }
 
 pub fn scan_directory_space(
@@ -36,8 +54,7 @@ pub fn scan_directory_space(
         .unwrap_or(DEFAULT_SPACE_SCAN_CHILDREN)
         .clamp(8, 160);
     let root_path = resolve_scan_path(home, request.path.as_deref())?;
-    let mut stats = SpaceScanStats::default();
-    let root = scan_path(&root_path, 0, max_depth, max_children, &mut stats)?;
+    let SpaceScanOutput { node: root, stats } = scan_path(&root_path, 0, max_depth, max_children)?;
 
     Ok(SpaceScanResult {
         total_size: root.size,
@@ -157,41 +174,39 @@ fn scan_path(
     depth: u8,
     max_depth: u8,
     max_children: usize,
-    stats: &mut SpaceScanStats,
-) -> Result<SpaceScanNode, String> {
+) -> Result<SpaceScanOutput, String> {
     let metadata = fs::symlink_metadata(path).map_err(|err| format!("读取路径失败：{err}"))?;
     if metadata.file_type().is_symlink() {
         return Err("空间分析不跟随符号链接。".to_string());
     }
 
     if metadata.file_type().is_file() {
-        return Ok(file_node(path, metadata.len(), depth));
+        return Ok(SpaceScanOutput {
+            node: file_node(path, metadata.len(), depth),
+            stats: SpaceScanStats::default(),
+        });
     }
 
     if !metadata.file_type().is_dir() {
         return Err("空间分析只支持普通文件夹。".to_string());
     }
 
-    Ok(scan_dir(path, depth, max_depth, max_children, stats))
+    Ok(scan_dir(path, depth, max_depth, max_children))
 }
 
-fn scan_dir(
-    path: &Path,
-    depth: u8,
-    max_depth: u8,
-    max_children: usize,
-    stats: &mut SpaceScanStats,
-) -> SpaceScanNode {
+fn scan_dir(path: &Path, depth: u8, max_depth: u8, max_children: usize) -> SpaceScanOutput {
     let mut node = dir_node(path, depth);
+    let mut stats = SpaceScanStats::default();
     let entries = match fs::read_dir(path) {
         Ok(entries) => entries,
         Err(err) => {
             stats.unreadable_entries += 1;
             node.read_error = Some(format!("读取目录失败：{err}"));
-            return node;
+            return SpaceScanOutput { node, stats };
         }
     };
     let mut child_count = 0usize;
+    let mut child_dirs = Vec::new();
 
     for entry in entries {
         let entry = match entry {
@@ -233,21 +248,29 @@ fn scan_dir(
 
         if file_type.is_dir() {
             stats.inspected_entries += 1;
-            let child = scan_dir(
-                &child_path,
-                depth.saturating_add(1),
-                max_depth,
-                max_children,
-                stats,
-            );
-            node.size = node.size.saturating_add(child.size);
-            node.files = node.files.saturating_add(child.files);
-            node.dirs = node.dirs.saturating_add(child.dirs).saturating_add(1);
-
             if depth < max_depth {
                 child_count += 1;
-                push_limited_child(&mut node.children, child, max_children);
             }
+            child_dirs.push(child_path);
+        }
+    }
+
+    let child_outputs = child_dirs
+        .par_iter()
+        .map(|child_path| scan_dir(child_path, depth.saturating_add(1), max_depth, max_children))
+        .collect::<Vec<_>>();
+
+    for child_output in child_outputs {
+        stats.merge(child_output.stats);
+        node.size = node.size.saturating_add(child_output.node.size);
+        node.files = node.files.saturating_add(child_output.node.files);
+        node.dirs = node
+            .dirs
+            .saturating_add(child_output.node.dirs)
+            .saturating_add(1);
+
+        if depth < max_depth {
+            push_limited_child(&mut node.children, child_output.node, max_children);
         }
     }
 
@@ -256,7 +279,7 @@ fn scan_dir(
         stats.truncated_dirs += 1;
     }
 
-    node
+    SpaceScanOutput { node, stats }
 }
 
 fn push_limited_child(

@@ -30,6 +30,7 @@ fs2 = "0.4.3"
 plist = "1.9.0"
 trash = "5.2.6"
 futures-util = "0.3"
+rayon = "1.10"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56.0"
