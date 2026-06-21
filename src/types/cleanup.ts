@@ -371,6 +371,14 @@ export type SpaceAiAnalysisResult = {
   tool_calls: SpaceAiToolCall[];
 };
 
+export type SpaceAiStreamEvent = {
+  request_id: string;
+  kind: "delta" | "done" | "error";
+  delta: string;
+  result: SpaceAiAnalysisResult | null;
+  error: string | null;
+};
+
 export type SpaceAiToolCall = {
   id: string;
   name: "delete_path" | string;

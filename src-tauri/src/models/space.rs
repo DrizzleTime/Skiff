@@ -64,12 +64,21 @@ pub struct SpaceAiChatMessage {
     pub content: String,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct SpaceAiAnalysisResult {
     pub provider: String,
     pub model: String,
     pub content: String,
     pub tool_calls: Vec<SpaceAiToolCall>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct SpaceAiStreamEvent {
+    pub request_id: String,
+    pub kind: String,
+    pub delta: String,
+    pub result: Option<SpaceAiAnalysisResult>,
+    pub error: Option<String>,
 }
 
 #[derive(Clone, Serialize)]

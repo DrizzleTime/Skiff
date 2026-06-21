@@ -6,8 +6,8 @@ use crate::{
         DuplicateFileScanResult, EnvInventory, EnvInventorySaveRequest, EnvInventorySaveResult,
         LargeFileScanRequest, LargeFileScanResult, PackageIconRequest, PackageIconResult,
         PackageScanRequest, PackageScanResult, PackageUninstallRequest, PackageUninstallResult,
-        SpaceAiAnalysisRequest, SpaceAiAnalysisResult, SpaceDirectoryDeleteRequest,
-        SpaceDirectoryDeleteResult, SpaceScanRequest, SpaceScanResult,
+        SpaceAiAnalysisRequest, SpaceAiAnalysisResult, SpaceAiStreamEvent,
+        SpaceDirectoryDeleteRequest, SpaceDirectoryDeleteResult, SpaceScanRequest, SpaceScanResult,
         DEFAULT_DUPLICATE_GROUP_LIMIT, DEFAULT_LARGE_FILE_LIMIT,
     },
     services::{
@@ -35,13 +35,14 @@ use crate::{
             delete_space_directory as delete_space_directory_item,
             scan_directory_space as scan_directory_space_items,
         },
-        space_ai::analyze_space_report,
+        space_ai::{analyze_space_report, stream_space_report},
         system::{home_dir, Platform},
     },
 };
 use tauri::{AppHandle, Emitter};
 
 const CLEANUP_PROGRESS_EVENT: &str = "cleanup-progress";
+const SPACE_AI_STREAM_EVENT: &str = "space-ai-stream";
 
 #[tauri::command]
 pub async fn scan_cleanup_targets(app: AppHandle) -> Result<CleanupScanResult, String> {
@@ -151,6 +152,64 @@ pub async fn analyze_directory_space(
     let home = home_dir()?;
     let settings = read_settings(&home).unwrap_or_default();
     analyze_space_report(&settings, request).await
+}
+
+#[tauri::command]
+pub async fn stream_directory_space_analysis(
+    app: AppHandle,
+    request_id: String,
+    request: SpaceAiAnalysisRequest,
+) -> Result<(), String> {
+    let home = home_dir()?;
+    let settings = read_settings(&home).unwrap_or_default();
+    let stream_request_id = request_id.trim().to_string();
+    if stream_request_id.is_empty() {
+        return Err("缺少 AI 流请求 ID。".to_string());
+    }
+
+    let delta_app = app.clone();
+    let delta_request_id = stream_request_id.clone();
+    match stream_space_report(&settings, request, move |delta| {
+        let _ = delta_app.emit(
+            SPACE_AI_STREAM_EVENT,
+            SpaceAiStreamEvent {
+                request_id: delta_request_id.clone(),
+                kind: "delta".to_string(),
+                delta,
+                result: None,
+                error: None,
+            },
+        );
+    })
+    .await
+    {
+        Ok(result) => {
+            let _ = app.emit(
+                SPACE_AI_STREAM_EVENT,
+                SpaceAiStreamEvent {
+                    request_id: stream_request_id,
+                    kind: "done".to_string(),
+                    delta: String::new(),
+                    result: Some(result),
+                    error: None,
+                },
+            );
+            Ok(())
+        }
+        Err(err) => {
+            let _ = app.emit(
+                SPACE_AI_STREAM_EVENT,
+                SpaceAiStreamEvent {
+                    request_id: stream_request_id,
+                    kind: "error".to_string(),
+                    delta: String::new(),
+                    result: None,
+                    error: Some(err.clone()),
+                },
+            );
+            Err(err)
+        }
+    }
 }
 
 #[tauri::command]

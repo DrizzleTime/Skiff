@@ -4,7 +4,7 @@ use crate::models::{
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
 
 #[derive(Deserialize)]
 struct ChatCompletionResponse {
@@ -14,6 +14,37 @@ struct ChatCompletionResponse {
 #[derive(Deserialize)]
 struct ChatCompletionChoice {
     message: ChatCompletionMessage,
+}
+
+#[derive(Deserialize)]
+struct ChatCompletionStreamResponse {
+    choices: Vec<ChatCompletionStreamChoice>,
+}
+
+#[derive(Deserialize)]
+struct ChatCompletionStreamChoice {
+    delta: ChatCompletionStreamDelta,
+}
+
+#[derive(Deserialize)]
+struct ChatCompletionStreamDelta {
+    #[serde(default)]
+    content: Option<String>,
+    #[serde(default)]
+    tool_calls: Vec<ChatCompletionStreamToolCall>,
+}
+
+#[derive(Deserialize)]
+struct ChatCompletionStreamToolCall {
+    index: usize,
+    id: Option<String>,
+    function: Option<ChatCompletionStreamToolFunction>,
+}
+
+#[derive(Deserialize)]
+struct ChatCompletionStreamToolFunction {
+    name: Option<String>,
+    arguments: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -63,22 +94,9 @@ pub async fn analyze_space_report(
         return Err("未配置 AI Model。请在设置中填写模型名称。".to_string());
     }
 
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(75))
-        .build()
-        .map_err(|err| format!("创建 AI 客户端失败：{err}"))?;
-    let messages = build_chat_payload(&request);
-    let payload = json!({
-        "model": model,
-        "messages": messages,
-        "tools": build_tools(),
-        "tool_choice": "auto",
-        "temperature": 0.2
-    });
-    let mut builder = client.post(endpoint).json(&payload);
-    if !api_key.is_empty() {
-        builder = builder.bearer_auth(api_key);
-    }
+    let client = build_client()?;
+    let payload = build_completion_payload(&request, model, false);
+    let builder = build_request(&client, endpoint, api_key, &payload);
 
     let response = builder
         .send()
@@ -115,6 +133,104 @@ pub async fn analyze_space_report(
         content,
         tool_calls,
     })
+}
+
+pub async fn stream_space_report<F>(
+    settings: &AppSettings,
+    request: SpaceAiAnalysisRequest,
+    mut on_delta: F,
+) -> Result<SpaceAiAnalysisResult, String>
+where
+    F: FnMut(String) + Send,
+{
+    let endpoint = settings.ai_endpoint.trim();
+    let model = settings.ai_model.trim();
+    let api_key = settings.ai_api_key.trim();
+
+    if endpoint.is_empty() {
+        return Err(
+            "未配置 AI Endpoint。请在设置中填写 OpenAI-compatible Chat Completions 地址。"
+                .to_string(),
+        );
+    }
+    if model.is_empty() {
+        return Err("未配置 AI Model。请在设置中填写模型名称。".to_string());
+    }
+
+    let client = build_client()?;
+    let payload = build_completion_payload(&request, model, true);
+    let response = build_request(&client, endpoint, api_key, &payload)
+        .send()
+        .await
+        .map_err(|err| format!("AI 分析请求失败：{err}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        let text = response
+            .text()
+            .await
+            .map_err(|err| format!("读取 AI 响应失败：{err}"))?;
+        return Err(format!(
+            "AI 分析请求失败（{}）：{}",
+            status.as_u16(),
+            compact_error_text(&text)
+        ));
+    }
+
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+    let mut state = StreamAccumulator::default();
+
+    use futures_util::StreamExt;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|err| format!("读取 AI 流失败：{err}"))?;
+        let text = std::str::from_utf8(&chunk).map_err(|err| format!("解析 AI 流失败：{err}"))?;
+        buffer.push_str(text);
+        while let Some(index) = buffer.find('\n') {
+            let line = buffer[..index].trim_end_matches('\r').to_string();
+            buffer.replace_range(..=index, "");
+            if handle_stream_line(&line, &mut state, &mut on_delta)? {
+                return Ok(state.finish(model));
+            }
+        }
+    }
+
+    if !buffer.trim().is_empty() {
+        handle_stream_line(buffer.trim(), &mut state, &mut on_delta)?;
+    }
+
+    Ok(state.finish(model))
+}
+
+fn build_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(75))
+        .build()
+        .map_err(|err| format!("创建 AI 客户端失败：{err}"))
+}
+
+fn build_completion_payload(request: &SpaceAiAnalysisRequest, model: &str, stream: bool) -> Value {
+    json!({
+        "model": model,
+        "messages": build_chat_payload(request),
+        "tools": build_tools(),
+        "tool_choice": "auto",
+        "temperature": 0.2,
+        "stream": stream
+    })
+}
+
+fn build_request<'a>(
+    client: &'a reqwest::Client,
+    endpoint: &'a str,
+    api_key: &'a str,
+    payload: &'a Value,
+) -> reqwest::RequestBuilder {
+    let builder = client.post(endpoint).json(payload);
+    if api_key.is_empty() {
+        builder
+    } else {
+        builder.bearer_auth(api_key)
+    }
 }
 
 fn build_chat_payload(request: &SpaceAiAnalysisRequest) -> Vec<Value> {
@@ -215,6 +331,109 @@ fn parse_tool_calls(tool_calls: Vec<ChatCompletionToolCall>) -> Vec<SpaceAiToolC
             })
         })
         .collect()
+}
+
+#[derive(Default)]
+struct StreamAccumulator {
+    content: String,
+    tool_calls: BTreeMap<usize, StreamToolCallAccumulator>,
+}
+
+#[derive(Default)]
+struct StreamToolCallAccumulator {
+    id: String,
+    name: String,
+    arguments: String,
+}
+
+impl StreamAccumulator {
+    fn finish(self, model: &str) -> SpaceAiAnalysisResult {
+        let tool_calls = self
+            .tool_calls
+            .into_iter()
+            .filter_map(|(index, value)| {
+                if value.name != "delete_path" {
+                    return None;
+                }
+                let arguments: DeletePathToolArguments =
+                    serde_json::from_str(&value.arguments).ok()?;
+                let path = arguments.path.trim();
+                if path.is_empty() {
+                    return None;
+                }
+                let mode = match arguments.mode.as_deref() {
+                    Some("permanent") => "permanent",
+                    _ => "trash",
+                };
+                Some(SpaceAiToolCall {
+                    id: if value.id.trim().is_empty() {
+                        format!("delete_path_{index}")
+                    } else {
+                        value.id
+                    },
+                    name: value.name,
+                    arguments: SpaceAiToolArguments {
+                        path: path.to_string(),
+                        mode: mode.to_string(),
+                        reason: arguments.reason.unwrap_or_default(),
+                    },
+                })
+            })
+            .collect();
+
+        SpaceAiAnalysisResult {
+            provider: "openai-compatible".to_string(),
+            model: model.to_string(),
+            content: self.content.trim().to_string(),
+            tool_calls,
+        }
+    }
+}
+
+fn handle_stream_line<F>(
+    line: &str,
+    state: &mut StreamAccumulator,
+    on_delta: &mut F,
+) -> Result<bool, String>
+where
+    F: FnMut(String),
+{
+    let line = line.trim();
+    if line.is_empty() || !line.starts_with("data:") {
+        return Ok(false);
+    }
+
+    let data = line.trim_start_matches("data:").trim();
+    if data == "[DONE]" {
+        return Ok(true);
+    }
+
+    let parsed: ChatCompletionStreamResponse =
+        serde_json::from_str(data).map_err(|err| format!("解析 AI 流响应失败：{err}"))?;
+    for choice in parsed.choices {
+        if let Some(content) = choice.delta.content {
+            if !content.is_empty() {
+                state.content.push_str(&content);
+                on_delta(content);
+            }
+        }
+        for tool_call in choice.delta.tool_calls {
+            let entry = state.tool_calls.entry(tool_call.index).or_default();
+            if let Some(id) = tool_call.id {
+                entry.id.push_str(&id);
+            }
+            if let Some(function) = tool_call.function {
+                if let Some(name) = function.name {
+                    entry.name.push_str(&name);
+                }
+                if let Some(arguments) = function.arguments {
+                    entry.arguments.push_str(&arguments);
+                }
+            }
+        }
+    }
+
+    Ok(false)
 }
 
 fn to_chat_payload_message(message: &SpaceAiChatMessage) -> Option<Value> {

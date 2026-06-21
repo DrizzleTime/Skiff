@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import ReactMarkdown from "react-markdown";
@@ -61,6 +62,7 @@ import type {
   SpaceAiAnalysisRequest,
   SpaceAiAnalysisResult,
   SpaceAiReportItem,
+  SpaceAiStreamEvent,
   SpaceAiToolCall,
   SpaceDirectoryDeleteMode,
   SpaceDirectoryDeleteResult,
@@ -73,6 +75,8 @@ function waitForNextFrame() {
     requestAnimationFrame(() => resolve());
   });
 }
+
+const SPACE_AI_STREAM_EVENT = "space-ai-stream";
 
 type SpacePageChrome = {
   actions: ReactNode;
@@ -259,25 +263,45 @@ export function SpaceAnalysisPage({
       try {
         await waitForNextFrame();
         const request = buildAiRequest(result, nextMessages);
-        const analysis = await invoke<SpaceAiAnalysisResult>("analyze_directory_space", {
-          request,
-        });
-        setAiResult(analysis);
-        const assistantContent =
-          analysis.content.trim() ||
-          (analysis.tool_calls.length > 0
-            ? t("space.toolDelete.agentRequested")
-            : t("space.ai.emptyResponse"));
+        const requestId = createAiStreamRequestId();
+        const assistantIndex = nextMessages.length;
         setAiMessages([
           ...nextMessages,
           {
             role: "assistant",
-            content: assistantContent,
+            content: "",
           },
         ]);
-        const firstDeleteCall = analysis.tool_calls.find((toolCall) => toolCall.name === "delete_path");
-        if (firstDeleteCall) {
-          openAgentDeleteAction(firstDeleteCall, result);
+        const analysis = await streamAiAnalysis(requestId, request, (event) => {
+          if (event.kind === "delta") {
+            setAiMessages((current) =>
+              updateAssistantMessage(current, assistantIndex, (content) => content + event.delta),
+            );
+            return;
+          }
+
+          if (event.kind === "done" && event.result) {
+            const finalContent =
+              event.result.content.trim() ||
+              (event.result.tool_calls.length > 0
+                ? t("space.toolDelete.agentRequested")
+                : t("space.ai.emptyResponse"));
+            setAiResult(event.result);
+            setAiMessages((current) =>
+              updateAssistantMessage(current, assistantIndex, () => finalContent),
+            );
+            const firstDeleteCall = event.result.tool_calls.find(
+              (toolCall) => toolCall.name === "delete_path",
+            );
+            if (firstDeleteCall) {
+              openAgentDeleteAction(firstDeleteCall, result);
+            }
+          }
+        });
+        if (!analysis) {
+          setAiMessages((current) =>
+            updateAssistantMessage(current, assistantIndex, () => t("space.ai.emptyResponse")),
+          );
         }
       } catch (analysisError) {
         setError(String(analysisError));
@@ -1014,4 +1038,74 @@ function toAiReportItem(node: SpaceScanNode): SpaceAiReportItem {
 
 function permanentDeleteConfirmation(path: string) {
   return `DELETE ${path}`;
+}
+
+function createAiStreamRequestId() {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function updateAssistantMessage(
+  messages: SpaceAiChatMessage[],
+  index: number,
+  update: (content: string) => string,
+) {
+  return messages.map((message, currentIndex) =>
+    currentIndex === index && message.role === "assistant"
+      ? { ...message, content: update(message.content) }
+      : message,
+  );
+}
+
+function streamAiAnalysis(
+  requestId: string,
+  request: SpaceAiAnalysisRequest,
+  onEvent: (event: SpaceAiStreamEvent) => void,
+) {
+  return new Promise<SpaceAiAnalysisResult | null>((resolve, reject) => {
+    let settled = false;
+    let unlisten: (() => void) | null = null;
+
+    function finish(callback: () => void) {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      unlisten?.();
+      callback();
+    }
+
+    listen<SpaceAiStreamEvent>(SPACE_AI_STREAM_EVENT, ({ payload }) => {
+      if (payload.request_id !== requestId) {
+        return;
+      }
+
+      if (payload.kind === "delta") {
+        onEvent(payload);
+        return;
+      }
+
+      if (payload.kind === "done") {
+        onEvent(payload);
+        finish(() => resolve(payload.result));
+        return;
+      }
+
+      finish(() => reject(new Error(payload.error ?? "AI stream failed")));
+    })
+      .then((nextUnlisten) => {
+        unlisten = nextUnlisten;
+        return invoke("stream_directory_space_analysis", {
+          requestId,
+          request,
+        });
+      })
+      .then(() => {
+        if (!settled) {
+          finish(() => resolve(null));
+        }
+      })
+      .catch((error) => {
+        finish(() => reject(error));
+      });
+  });
 }
