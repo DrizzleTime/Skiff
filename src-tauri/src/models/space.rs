@@ -69,6 +69,21 @@ pub struct SpaceAiAnalysisResult {
     pub provider: String,
     pub model: String,
     pub content: String,
+    pub tool_calls: Vec<SpaceAiToolCall>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct SpaceAiToolCall {
+    pub id: String,
+    pub name: String,
+    pub arguments: SpaceAiToolArguments,
+}
+
+#[derive(Clone, Serialize)]
+pub struct SpaceAiToolArguments {
+    pub path: String,
+    pub mode: String,
+    pub reason: String,
 }
 
 #[derive(Deserialize)]

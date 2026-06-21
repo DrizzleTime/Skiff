@@ -1,5 +1,6 @@
 use crate::models::{
     AppSettings, SpaceAiAnalysisRequest, SpaceAiAnalysisResult, SpaceAiChatMessage,
+    SpaceAiToolArguments, SpaceAiToolCall,
 };
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -17,7 +18,31 @@ struct ChatCompletionChoice {
 
 #[derive(Deserialize)]
 struct ChatCompletionMessage {
-    content: String,
+    #[serde(default)]
+    content: Option<String>,
+    #[serde(default)]
+    tool_calls: Vec<ChatCompletionToolCall>,
+}
+
+#[derive(Deserialize)]
+struct ChatCompletionToolCall {
+    id: Option<String>,
+    function: ChatCompletionToolFunction,
+}
+
+#[derive(Deserialize)]
+struct ChatCompletionToolFunction {
+    name: String,
+    arguments: String,
+}
+
+#[derive(Deserialize)]
+struct DeletePathToolArguments {
+    path: String,
+    #[serde(default)]
+    mode: Option<String>,
+    #[serde(default)]
+    reason: Option<String>,
 }
 
 pub async fn analyze_space_report(
@@ -46,6 +71,8 @@ pub async fn analyze_space_report(
     let payload = json!({
         "model": model,
         "messages": messages,
+        "tools": build_tools(),
+        "tool_choice": "auto",
         "temperature": 0.2
     });
     let mut builder = client.post(endpoint).json(&payload);
@@ -73,18 +100,20 @@ pub async fn analyze_space_report(
 
     let parsed: ChatCompletionResponse =
         serde_json::from_str(&text).map_err(|err| format!("解析 AI 响应失败：{err}"))?;
-    let content = parsed
+    let message = parsed
         .choices
         .into_iter()
         .next()
-        .map(|choice| choice.message.content.trim().to_string())
-        .filter(|value| !value.is_empty())
+        .map(|choice| choice.message)
         .ok_or_else(|| "AI 响应为空。".to_string())?;
+    let content = message.content.unwrap_or_default().trim().to_string();
+    let tool_calls = parse_tool_calls(message.tool_calls);
 
     Ok(SpaceAiAnalysisResult {
         provider: "openai-compatible".to_string(),
         model: model.to_string(),
         content,
+        tool_calls,
     })
 }
 
@@ -117,9 +146,75 @@ fn build_chat_payload(request: &SpaceAiAnalysisRequest) -> Vec<Value> {
 fn build_system_message(request: &SpaceAiAnalysisRequest) -> String {
     format!(
         "{}\n\n当前扫描结果：\n{}",
-        "你是磁盘空间分析助手。只基于用户提供的扫描结果判断，不编造未扫描路径。回答使用 Markdown，不要把整段回答包进代码块。输出中文，直说结论、风险和下一步操作。不要建议直接删除系统目录、应用主目录或未知业务数据；高风险项必须提示通过官方卸载器、应用内清理或先备份。",
+        "你是磁盘空间分析助手。只基于用户提供的扫描结果判断，不编造未扫描路径。回答使用 Markdown，不要把整段回答包进代码块。输出中文，直说结论、风险和下一步操作。不要建议直接删除系统目录、应用主目录或未知业务数据；高风险项必须提示通过官方卸载器、应用内清理或先备份。你可以调用 delete_path 工具请求删除扫描结果中的文件或目录，但工具请求只会进入用户确认队列，不会自动执行。需要删除时必须调用 delete_path，不要输出 rm、del、Remove-Item 或其他 shell 删除命令。",
         build_space_context(request)
     )
+}
+
+fn build_tools() -> Vec<Value> {
+    vec![json!({
+        "type": "function",
+        "function": {
+            "name": "delete_path",
+            "description": "请求删除当前空间扫描结果中的一个文件或目录。应用会先展示确认弹窗，用户确认后才执行。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "要删除的绝对路径，必须来自当前扫描结果。"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": ["trash", "permanent"],
+                        "description": "trash 表示移入系统回收站；permanent 表示永久删除。默认使用 trash。"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "为什么建议删除该路径。"
+                    }
+                },
+                "required": ["path", "mode", "reason"],
+                "additionalProperties": false
+            }
+        }
+    })]
+}
+
+fn parse_tool_calls(tool_calls: Vec<ChatCompletionToolCall>) -> Vec<SpaceAiToolCall> {
+    tool_calls
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, tool_call)| {
+            if tool_call.function.name != "delete_path" {
+                return None;
+            }
+
+            let arguments: DeletePathToolArguments =
+                serde_json::from_str(&tool_call.function.arguments).ok()?;
+            let path = arguments.path.trim();
+            if path.is_empty() {
+                return None;
+            }
+
+            let mode = match arguments.mode.as_deref() {
+                Some("permanent") => "permanent",
+                _ => "trash",
+            };
+            Some(SpaceAiToolCall {
+                id: tool_call
+                    .id
+                    .filter(|value| !value.trim().is_empty())
+                    .unwrap_or_else(|| format!("delete_path_{index}")),
+                name: tool_call.function.name,
+                arguments: SpaceAiToolArguments {
+                    path: path.to_string(),
+                    mode: mode.to_string(),
+                    reason: arguments.reason.unwrap_or_default(),
+                },
+            })
+        })
+        .collect()
 }
 
 fn to_chat_payload_message(message: &SpaceAiChatMessage) -> Option<Value> {

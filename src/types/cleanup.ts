@@ -368,6 +368,17 @@ export type SpaceAiAnalysisResult = {
   provider: string;
   model: string;
   content: string;
+  tool_calls: SpaceAiToolCall[];
+};
+
+export type SpaceAiToolCall = {
+  id: string;
+  name: "delete_path" | string;
+  arguments: {
+    path: string;
+    mode: SpaceDirectoryDeleteMode;
+    reason: string;
+  };
 };
 
 export type SpaceDirectoryDeleteMode = "trash" | "permanent";

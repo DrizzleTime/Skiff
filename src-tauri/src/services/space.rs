@@ -64,10 +64,10 @@ pub fn delete_space_directory(
 
     let metadata = fs::symlink_metadata(&path).map_err(|err| format!("读取目录失败：{err}"))?;
     if metadata.file_type().is_symlink() {
-        return Err("不能删除符号链接目录。".to_string());
+        return Err("不能删除符号链接路径。".to_string());
     }
-    if !metadata.file_type().is_dir() {
-        return Err("只能删除目录。".to_string());
+    if !metadata.file_type().is_file() && !metadata.file_type().is_dir() {
+        return Err("只能删除普通文件或目录。".to_string());
     }
 
     let canonical_path = path
@@ -76,7 +76,7 @@ pub fn delete_space_directory(
     if !canonical_path.starts_with(&home) {
         return Err("只能删除当前用户目录下的目录。".to_string());
     }
-    if canonical_path == home {
+    if metadata.file_type().is_dir() && canonical_path == home {
         return Err("不能删除当前用户 HOME 目录。".to_string());
     }
 
@@ -101,7 +101,12 @@ pub fn delete_space_directory(
                 return Err("永久删除需要输入完整确认短语。".to_string());
             }
 
-            fs::remove_dir_all(&canonical_path).map_err(|err| format!("永久删除失败：{err}"))?;
+            if metadata.file_type().is_file() {
+                fs::remove_file(&canonical_path).map_err(|err| format!("永久删除失败：{err}"))?;
+            } else {
+                fs::remove_dir_all(&canonical_path)
+                    .map_err(|err| format!("永久删除失败：{err}"))?;
+            }
             Ok(SpaceDirectoryDeleteResult {
                 path: path_text,
                 released_size: stats.size,
@@ -458,6 +463,31 @@ mod tests {
         assert_eq!(result.released_size, 6);
         assert_eq!(result.deleted_files, 2);
         assert_eq!(result.deleted_dirs, 2);
+        assert!(result.permanent);
+        assert!(!result.trashed);
+    }
+
+    #[test]
+    fn permanent_delete_removes_user_file() {
+        let dir = tempdir().expect("tempdir");
+        let target = dir.path().join("archive.zip");
+        fs::write(&target, b"abcd").expect("file");
+        let target = target.canonicalize().expect("canonical target");
+
+        let result = delete_space_directory(
+            dir.path(),
+            SpaceDirectoryDeleteRequest {
+                path: target.display().to_string(),
+                mode: SpaceDirectoryDeleteMode::Permanent,
+                confirmation: Some(permanent_delete_confirmation(&target)),
+            },
+        )
+        .expect("delete file");
+
+        assert!(!target.exists());
+        assert_eq!(result.released_size, 4);
+        assert_eq!(result.deleted_files, 1);
+        assert_eq!(result.deleted_dirs, 0);
         assert!(result.permanent);
         assert!(!result.trashed);
     }

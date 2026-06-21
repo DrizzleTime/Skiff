@@ -61,6 +61,7 @@ import type {
   SpaceAiAnalysisRequest,
   SpaceAiAnalysisResult,
   SpaceAiReportItem,
+  SpaceAiToolCall,
   SpaceDirectoryDeleteMode,
   SpaceDirectoryDeleteResult,
   SpaceScanNode,
@@ -82,6 +83,8 @@ type SpacePageChrome = {
 type PendingDirectoryAction = {
   item: SpaceAiReportItem;
   mode: SpaceDirectoryDeleteMode;
+  source: "manual" | "agent";
+  reason: string;
 };
 
 export function SpaceAnalysisPage({
@@ -212,6 +215,30 @@ export function SpaceAnalysisPage({
     }
   }, [pageBusy, scanPath, t]);
 
+  const openAgentDeleteAction = useCallback(
+    (toolCall: SpaceAiToolCall, scanResult: SpaceScanResult) => {
+      if (toolCall.name !== "delete_path") {
+        return false;
+      }
+
+      const item = findScannedItem(scanResult.root, toolCall.arguments.path);
+      if (!item) {
+        setError(t("space.toolDelete.notInScan", { path: toolCall.arguments.path }));
+        return false;
+      }
+
+      setDirectoryConfirmInput("");
+      setPendingDirectoryAction({
+        item,
+        mode: toolCall.arguments.mode === "permanent" ? "permanent" : "trash",
+        source: "agent",
+        reason: toolCall.arguments.reason,
+      });
+      return true;
+    },
+    [t],
+  );
+
   const sendAiMessage = useCallback(
     async (content: string, options?: { reset?: boolean }) => {
       const trimmed = content.trim();
@@ -236,20 +263,29 @@ export function SpaceAnalysisPage({
           request,
         });
         setAiResult(analysis);
+        const assistantContent =
+          analysis.content.trim() ||
+          (analysis.tool_calls.length > 0
+            ? t("space.toolDelete.agentRequested")
+            : t("space.ai.emptyResponse"));
         setAiMessages([
           ...nextMessages,
           {
             role: "assistant",
-            content: analysis.content,
+            content: assistantContent,
           },
         ]);
+        const firstDeleteCall = analysis.tool_calls.find((toolCall) => toolCall.name === "delete_path");
+        if (firstDeleteCall) {
+          openAgentDeleteAction(firstDeleteCall, result);
+        }
       } catch (analysisError) {
         setError(String(analysisError));
       } finally {
         setAnalyzing(false);
       }
     },
-    [aiMessages, pageBusy, result],
+    [aiMessages, openAgentDeleteAction, pageBusy, result, t],
   );
 
   const analyzeWithAi = useCallback(async () => {
@@ -282,12 +318,12 @@ export function SpaceAnalysisPage({
 
   const openDirectoryAction = useCallback(
     (item: SpaceAiReportItem, mode: SpaceDirectoryDeleteMode) => {
-      if (pageBusy || item.kind !== "directory") {
+      if (pageBusy) {
         return;
       }
 
       setDirectoryConfirmInput("");
-      setPendingDirectoryAction({ item, mode });
+      setPendingDirectoryAction({ item, mode, source: "manual", reason: "" });
     },
     [pageBusy],
   );
@@ -343,6 +379,7 @@ export function SpaceAnalysisPage({
   ]);
 
   const directoryActionIsPermanent = pendingDirectoryAction?.mode === "permanent";
+  const pendingDeleteIsFile = pendingDirectoryAction?.item.kind === "file";
   const directoryConfirmationPhrase = pendingDirectoryAction
     ? permanentDeleteConfirmation(pendingDirectoryAction.item.path)
     : "";
@@ -515,30 +552,26 @@ export function SpaceAnalysisPage({
                     {formatSize(item.size)}
                   </span>
                   <span className="flex justify-end gap-1">
-                    {item.kind === "directory" ? (
-                      <>
-                        <Button
-                          aria-label={t("space.directoryAction.trash")}
-                          className="size-7 px-0"
-                          disabled={pageBusy}
-                          onClick={() => openDirectoryAction(item, "trash")}
-                          title={t("space.directoryAction.trash")}
-                          variant="outline"
-                        >
-                          <Trash2 size={13} />
-                        </Button>
-                        <Button
-                          aria-label={t("space.directoryAction.permanent")}
-                          className="size-7 px-0"
-                          disabled={pageBusy}
-                          onClick={() => openDirectoryAction(item, "permanent")}
-                          title={t("space.directoryAction.permanent")}
-                          variant="destructive"
-                        >
-                          <ShieldAlert size={13} />
-                        </Button>
-                      </>
-                    ) : null}
+                    <Button
+                      aria-label={t("space.directoryAction.trash")}
+                      className="size-7 px-0"
+                      disabled={pageBusy}
+                      onClick={() => openDirectoryAction(item, "trash")}
+                      title={t("space.directoryAction.trash")}
+                      variant="outline"
+                    >
+                      <Trash2 size={13} />
+                    </Button>
+                    <Button
+                      aria-label={t("space.directoryAction.permanent")}
+                      className="size-7 px-0"
+                      disabled={pageBusy}
+                      onClick={() => openDirectoryAction(item, "permanent")}
+                      title={t("space.directoryAction.permanent")}
+                      variant="destructive"
+                    >
+                      <ShieldAlert size={13} />
+                    </Button>
                   </span>
                 </div>
               ))
@@ -563,20 +596,34 @@ export function SpaceAnalysisPage({
           <DialogHeader>
             <DialogTitle>
               {directoryActionIsPermanent
-                ? t("space.directoryDelete.permanentTitle")
-                : t("space.directoryDelete.trashTitle")}
+                ? pendingDeleteIsFile
+                  ? t("space.pathDelete.permanentFileTitle")
+                  : t("space.directoryDelete.permanentTitle")
+                : pendingDeleteIsFile
+                  ? t("space.pathDelete.trashFileTitle")
+                  : t("space.directoryDelete.trashTitle")}
             </DialogTitle>
             <DialogDescription>
               {pendingDirectoryAction
                 ? directoryActionIsPermanent
-                  ? t("space.directoryDelete.permanentDescription", {
-                      name: pendingDirectoryAction.item.name,
-                      size: formatSize(pendingDirectoryAction.item.size),
-                    })
-                  : t("space.directoryDelete.trashDescription", {
-                      name: pendingDirectoryAction.item.name,
-                      size: formatSize(pendingDirectoryAction.item.size),
-                    })
+                  ? pendingDeleteIsFile
+                    ? t("space.pathDelete.permanentFileDescription", {
+                        name: pendingDirectoryAction.item.name,
+                        size: formatSize(pendingDirectoryAction.item.size),
+                      })
+                    : t("space.directoryDelete.permanentDescription", {
+                        name: pendingDirectoryAction.item.name,
+                        size: formatSize(pendingDirectoryAction.item.size),
+                      })
+                  : pendingDeleteIsFile
+                    ? t("space.pathDelete.trashFileDescription", {
+                        name: pendingDirectoryAction.item.name,
+                        size: formatSize(pendingDirectoryAction.item.size),
+                      })
+                    : t("space.directoryDelete.trashDescription", {
+                        name: pendingDirectoryAction.item.name,
+                        size: formatSize(pendingDirectoryAction.item.size),
+                      })
                 : ""}
             </DialogDescription>
           </DialogHeader>
@@ -592,11 +639,20 @@ export function SpaceAnalysisPage({
                       : t("space.directoryDelete.trashWarning")}
                   </span>
                 </div>
+                {pendingDirectoryAction.source === "agent" ? (
+                  <span>
+                    {t("space.toolDelete.agentReason", {
+                      reason: pendingDirectoryAction.reason || t("common.none"),
+                    })}
+                  </span>
+                ) : null}
                 <span>
-                  {t("space.directoryDelete.scope", {
-                    files: formatCount(pendingDirectoryAction.item.files, locale),
-                    dirs: formatCount(pendingDirectoryAction.item.dirs + 1, locale),
-                  })}
+                  {pendingDeleteIsFile
+                    ? t("space.pathDelete.fileScope")
+                    : t("space.directoryDelete.scope", {
+                        files: formatCount(pendingDirectoryAction.item.files, locale),
+                        dirs: formatCount(pendingDirectoryAction.item.dirs + 1, locale),
+                      })}
                 </span>
                 <code className="break-all rounded-md bg-white/75 px-2 py-1 font-mono text-[11px]">
                   {pendingDirectoryAction.item.path}
@@ -909,6 +965,16 @@ function collectTopItems(root: SpaceScanNode): SpaceAiReportItem[] {
   const items = flattenSpaceNodes(root).filter((node) => node.id !== root.id);
   items.sort((left, right) => right.size - left.size);
   return items.map(toAiReportItem);
+}
+
+function findScannedItem(root: SpaceScanNode, path: string): SpaceAiReportItem | null {
+  const normalizedPath = path.trim();
+  if (!normalizedPath) {
+    return null;
+  }
+
+  const match = flattenSpaceNodes(root).find((node) => node.path === normalizedPath);
+  return match ? toAiReportItem(match) : null;
 }
 
 function buildAiRequest(
