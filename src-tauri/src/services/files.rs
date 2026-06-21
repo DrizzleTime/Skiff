@@ -187,7 +187,7 @@ fn is_cloud_storage_dir_name(name: &str) -> bool {
         || lower_name.starts_with("google drive")
 }
 
-fn should_skip_scan_dir(path: &Path) -> bool {
+fn should_skip_scan_dir(path: &Path, home: &Path, skip_platform_roots: bool) -> bool {
     let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
         return false;
     };
@@ -197,9 +197,38 @@ fn should_skip_scan_dir(path: &Path) -> bool {
             name,
             "node_modules" | "target" | "dist" | "build" | ".git" | ".cache"
         )
+        || (skip_platform_roots && is_platform_scan_root(path, home))
 }
 
-#[cfg(test)]
+fn is_platform_scan_root(path: &Path, home: &Path) -> bool {
+    let Ok(relative_path) = path.strip_prefix(home) else {
+        return false;
+    };
+    let Some(first_path_segment) = first_normal_component(relative_path) else {
+        return false;
+    };
+
+    platform_scan_root_candidates().iter().any(|candidate| {
+        first_normal_component(Path::new(candidate))
+            .is_some_and(|candidate_segment| path_segment_eq(first_path_segment, candidate_segment))
+    })
+}
+
+fn first_normal_component(path: &Path) -> Option<&str> {
+    path.components().find_map(|component| match component {
+        std::path::Component::Normal(value) => value.to_str(),
+        _ => None,
+    })
+}
+
+fn path_segment_eq(left: &str, right: &str) -> bool {
+    if cfg!(target_os = "windows") {
+        left.eq_ignore_ascii_case(right)
+    } else {
+        left == right
+    }
+}
+
 fn platform_scan_root_candidates() -> &'static [&'static str] {
     #[cfg(target_os = "windows")]
     {
@@ -387,9 +416,18 @@ fn collect_scan_files(
 ) -> io::Result<(Vec<FileItem>, u64)> {
     let mut files = Vec::new();
     let mut scanned_files = 0;
+    let home = home.canonicalize()?;
+    let skip_platform_roots = configured_paths.is_empty();
 
-    for root in scan_roots(home, configured_paths) {
-        collect_scan_files_from_dir(&root, min_size, &mut files, &mut scanned_files)?;
+    for root in scan_roots(&home, configured_paths) {
+        collect_scan_files_from_dir(
+            &root,
+            &home,
+            min_size,
+            skip_platform_roots,
+            &mut files,
+            &mut scanned_files,
+        )?;
     }
 
     Ok((files, scanned_files))
@@ -397,7 +435,9 @@ fn collect_scan_files(
 
 fn collect_scan_files_from_dir(
     dir: &Path,
+    home: &Path,
     min_size: u64,
+    skip_platform_roots: bool,
     files: &mut Vec<FileItem>,
     scanned_files: &mut u64,
 ) -> io::Result<()> {
@@ -418,10 +458,17 @@ fn collect_scan_files_from_dir(
         }
 
         if file_type.is_dir() {
-            if should_skip_scan_dir(&path) {
+            if should_skip_scan_dir(&path, home, skip_platform_roots) {
                 continue;
             }
-            let _ = collect_scan_files_from_dir(&path, min_size, files, scanned_files);
+            let _ = collect_scan_files_from_dir(
+                &path,
+                home,
+                min_size,
+                skip_platform_roots,
+                files,
+                scanned_files,
+            );
             continue;
         }
 
@@ -580,11 +627,12 @@ mod tests {
             return;
         };
         let dir = tempdir().expect("tempdir");
-        let root = dir.path().join(candidate);
+        let home = dir.path().canonicalize().expect("canonical home");
+        let root = home.join(candidate);
         fs::create_dir_all(&root).expect("create platform root");
         fs::write(root.join("large.txt"), b"large-enough").expect("write large");
 
-        let result = find_large_files(dir.path(), 8, 20, &[]).expect("scan large files");
+        let result = find_large_files(&home, 8, 20, &[]).expect("scan large files");
 
         assert_eq!(result.total_files, 0);
     }
@@ -628,6 +676,11 @@ mod tests {
     fn normalize_scan_paths_accepts_home_relative_paths_and_deduplicates() {
         let dir = tempdir().expect("tempdir");
         fs::create_dir(dir.path().join("Downloads")).expect("create downloads");
+        let expected = dir
+            .path()
+            .join("Downloads")
+            .canonicalize()
+            .expect("canonical downloads");
 
         let paths = normalize_scan_paths(
             dir.path(),
@@ -635,10 +688,7 @@ mod tests {
         )
         .expect("normalize paths");
 
-        assert_eq!(
-            paths,
-            vec![dir.path().join("Downloads").display().to_string()]
-        );
+        assert_eq!(paths, vec![expected.display().to_string()]);
     }
 
     #[test]
