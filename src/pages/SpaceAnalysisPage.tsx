@@ -17,6 +17,7 @@ import remarkGfm from "remark-gfm";
 import {
   AlertTriangle,
   Bot,
+  CheckCircle2,
   ChevronDown,
   ChevronRight,
   FileText,
@@ -26,12 +27,14 @@ import {
   Grid2X2,
   HardDrive,
   ListTree,
+  Loader2,
   Search,
   Send,
   ShieldAlert,
   Sparkles,
   Trash2,
   UserRound,
+  XCircle,
 } from "lucide-react";
 import { ActivityPanel } from "../components/cleanup/ActivityPanel";
 import { CleanupEmptyState } from "../components/cleanup/CleanupEmptyState";
@@ -87,9 +90,34 @@ type SpacePageChrome = {
 type PendingDirectoryAction = {
   item: SpaceAiReportItem;
   mode: SpaceDirectoryDeleteMode;
-  source: "manual" | "agent";
-  reason: string;
 };
+
+type SpaceDeleteToolStatus = "pending" | "running" | "done" | "cancelled" | "error";
+
+type SpaceDeleteToolMessage = {
+  id: string;
+  assistantIndex: number;
+  item: SpaceAiReportItem | null;
+  path: string;
+  mode: SpaceDirectoryDeleteMode;
+  reason: string;
+  status: SpaceDeleteToolStatus;
+  error: string | null;
+  result: SpaceDirectoryDeleteResult | null;
+  confirmationInput: string;
+};
+
+type SpaceAiChatRenderItem =
+  | {
+      type: "message";
+      key: string;
+      message: SpaceAiChatMessage;
+    }
+  | {
+      type: "deleteTool";
+      key: string;
+      tool: SpaceDeleteToolMessage;
+    };
 
 export function SpaceAnalysisPage({
   active,
@@ -104,6 +132,7 @@ export function SpaceAnalysisPage({
   const [result, setResult] = useState<SpaceScanResult | null>(null);
   const [aiResult, setAiResult] = useState<SpaceAiAnalysisResult | null>(null);
   const [aiMessages, setAiMessages] = useState<SpaceAiChatMessage[]>([]);
+  const [deleteToolMessages, setDeleteToolMessages] = useState<SpaceDeleteToolMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -121,18 +150,30 @@ export function SpaceAnalysisPage({
     () => (result ? collectTopItems(result.root).slice(0, 8) : []),
     [result],
   );
+  const visibleAiChatItems = useMemo(
+    () => buildAiChatRenderItems(aiMessages, deleteToolMessages),
+    [aiMessages, deleteToolMessages],
+  );
+  const hasStreamingAssistantContent =
+    analyzing &&
+    aiMessages.some(
+      (message) => message.role === "assistant" && message.content.trim().length > 0,
+    );
 
   const scanPath = useCallback(
-    async (path?: string, options?: { force?: boolean }) => {
+    async (path?: string, options?: { force?: boolean; preserveAi?: boolean }) => {
       if (pageBusy && !options?.force) {
         return;
       }
 
       setScanning(true);
       setError(null);
-      setAiResult(null);
-      setAiMessages([]);
-      setChatInput("");
+      if (!options?.preserveAi) {
+        setAiResult(null);
+        setAiMessages([]);
+        setDeleteToolMessages([]);
+        setChatInput("");
+      }
       try {
         await waitForNextFrame();
         const request = path
@@ -197,7 +238,7 @@ export function SpaceAnalysisPage({
     }
 
     node.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
-  }, [aiMessages, analyzing]);
+  }, [aiMessages, deleteToolMessages, analyzing]);
 
   const chooseFolder = useCallback(async () => {
     if (pageBusy) {
@@ -219,26 +260,31 @@ export function SpaceAnalysisPage({
     }
   }, [pageBusy, scanPath, t]);
 
-  const openAgentDeleteAction = useCallback(
-    (toolCall: SpaceAiToolCall, scanResult: SpaceScanResult) => {
+  const appendAgentDeleteToolCall = useCallback(
+    (toolCall: SpaceAiToolCall, scanResult: SpaceScanResult, assistantIndex: number) => {
       if (toolCall.name !== "delete_path") {
         return false;
       }
 
       const item = findScannedItem(scanResult.root, toolCall.arguments.path);
-      if (!item) {
-        setError(t("space.toolDelete.notInScan", { path: toolCall.arguments.path }));
-        return false;
-      }
-
-      setDirectoryConfirmInput("");
-      setPendingDirectoryAction({
-        item,
-        mode: toolCall.arguments.mode === "permanent" ? "permanent" : "trash",
-        source: "agent",
-        reason: toolCall.arguments.reason,
-      });
-      return true;
+      setDeleteToolMessages((current) => [
+        ...current,
+        {
+          id: createDeleteToolMessageId(toolCall),
+          assistantIndex,
+          item,
+          path: toolCall.arguments.path,
+          mode: toolCall.arguments.mode === "permanent" ? "permanent" : "trash",
+          reason: toolCall.arguments.reason,
+          status: item ? "pending" : "error",
+          error: item
+            ? null
+            : t("space.toolDelete.notInScan", { path: toolCall.arguments.path }),
+          result: null,
+          confirmationInput: "",
+        },
+      ]);
+      return Boolean(item);
     },
     [t],
   );
@@ -256,6 +302,9 @@ export function SpaceAnalysisPage({
       };
       const nextMessages = options?.reset ? [userMessage] : [...aiMessages, userMessage];
 
+      if (options?.reset) {
+        setDeleteToolMessages([]);
+      }
       setAiMessages(nextMessages);
       setChatInput("");
       setAnalyzing(true);
@@ -290,11 +339,10 @@ export function SpaceAnalysisPage({
             setAiMessages((current) =>
               updateAssistantMessage(current, assistantIndex, () => finalContent),
             );
-            const firstDeleteCall = event.result.tool_calls.find(
-              (toolCall) => toolCall.name === "delete_path",
-            );
-            if (firstDeleteCall) {
-              openAgentDeleteAction(firstDeleteCall, result);
+            for (const toolCall of event.result.tool_calls) {
+              if (toolCall.name === "delete_path") {
+                appendAgentDeleteToolCall(toolCall, result, assistantIndex);
+              }
             }
           }
         });
@@ -309,7 +357,7 @@ export function SpaceAnalysisPage({
         setAnalyzing(false);
       }
     },
-    [aiMessages, openAgentDeleteAction, pageBusy, result, t],
+    [aiMessages, appendAgentDeleteToolCall, pageBusy, result, t],
   );
 
   const analyzeWithAi = useCallback(async () => {
@@ -347,7 +395,7 @@ export function SpaceAnalysisPage({
       }
 
       setDirectoryConfirmInput("");
-      setPendingDirectoryAction({ item, mode, source: "manual", reason: "" });
+      setPendingDirectoryAction({ item, mode });
     },
     [pageBusy],
   );
@@ -401,6 +449,83 @@ export function SpaceAnalysisPage({
     result,
     scanPath,
   ]);
+
+  const updateDeleteToolConfirmation = useCallback((id: string, value: string) => {
+    setDeleteToolMessages((current) =>
+      current.map((tool) => (tool.id === id ? { ...tool, confirmationInput: value } : tool)),
+    );
+  }, []);
+
+  const cancelDeleteToolMessage = useCallback((id: string) => {
+    setDeleteToolMessages((current) =>
+      current.map((tool) =>
+        tool.id === id && tool.status === "pending"
+          ? { ...tool, status: "cancelled", error: null }
+          : tool,
+      ),
+    );
+  }, []);
+
+  const confirmDeleteToolMessage = useCallback(
+    async (id: string) => {
+      if (!result || deletingDirectory) {
+        return;
+      }
+
+      const tool = deleteToolMessages.find((message) => message.id === id);
+      if (!tool || !tool.item || tool.status !== "pending") {
+        return;
+      }
+
+      const confirmation =
+        tool.mode === "permanent" ? tool.confirmationInput : null;
+      if (
+        tool.mode === "permanent" &&
+        confirmation !== permanentDeleteConfirmation(tool.item.path)
+      ) {
+        return;
+      }
+
+      setDeletingDirectory(true);
+      setError(null);
+      setDeleteToolMessages((current) =>
+        current.map((message) =>
+          message.id === id
+            ? { ...message, status: "running", error: null, result: null }
+            : message,
+        ),
+      );
+      try {
+        await waitForNextFrame();
+        const deleteResult = await invoke<SpaceDirectoryDeleteResult>("delete_space_directory", {
+          request: {
+            path: tool.item.path,
+            mode: tool.mode,
+            confirmation,
+          },
+        });
+        setDeleteToolMessages((current) =>
+          current.map((message) =>
+            message.id === id
+              ? { ...message, status: "done", result: deleteResult, error: null }
+              : message,
+          ),
+        );
+        await scanPath(result.root.path, { force: true, preserveAi: true });
+      } catch (deleteError) {
+        setDeleteToolMessages((current) =>
+          current.map((message) =>
+            message.id === id
+              ? { ...message, status: "error", error: String(deleteError), result: null }
+              : message,
+          ),
+        );
+      } finally {
+        setDeletingDirectory(false);
+      }
+    },
+    [deleteToolMessages, deletingDirectory, result, scanPath],
+  );
 
   const directoryActionIsPermanent = pendingDirectoryAction?.mode === "permanent";
   const pendingDeleteIsFile = pendingDirectoryAction?.item.kind === "file";
@@ -500,15 +625,25 @@ export function SpaceAnalysisPage({
           </PanelTitle>
           <div className="flex min-h-0 flex-1 flex-col">
             <div ref={aiScrollRef} className="min-h-0 flex-1 overflow-auto px-4 py-3">
-              {aiMessages.length > 0 ? (
+              {visibleAiChatItems.length > 0 ? (
                 <div className="grid gap-3">
-                  {aiMessages.map((message, index) => (
-                    <AiChatBubble
-                      key={`${message.role}-${index}-${message.content.length}`}
-                      message={message}
-                    />
-                  ))}
-                  {analyzing ? <AiTypingIndicator label={t("space.ai.running")} /> : null}
+                  {visibleAiChatItems.map((item) =>
+                    item.type === "message" ? (
+                      <AiChatBubble key={item.key} message={item.message} />
+                    ) : (
+                      <AiDeleteToolCard
+                        deleting={deletingDirectory}
+                        key={item.key}
+                        onCancel={cancelDeleteToolMessage}
+                        onConfirm={confirmDeleteToolMessage}
+                        onConfirmationChange={updateDeleteToolConfirmation}
+                        tool={item.tool}
+                      />
+                    ),
+                  )}
+                  {analyzing && !hasStreamingAssistantContent ? (
+                    <AiTypingIndicator label={t("space.ai.running")} />
+                  ) : null}
                 </div>
               ) : analyzing ? (
                 <ActivityPanel
@@ -663,13 +798,6 @@ export function SpaceAnalysisPage({
                       : t("space.directoryDelete.trashWarning")}
                   </span>
                 </div>
-                {pendingDirectoryAction.source === "agent" ? (
-                  <span>
-                    {t("space.toolDelete.agentReason", {
-                      reason: pendingDirectoryAction.reason || t("common.none"),
-                    })}
-                  </span>
-                ) : null}
                 <span>
                   {pendingDeleteIsFile
                     ? t("space.pathDelete.fileScope")
@@ -729,6 +857,163 @@ export function SpaceAnalysisPage({
         </DialogContent>
       </Dialog>
     </PageSurface>
+  );
+}
+
+function AiDeleteToolCard({
+  deleting,
+  onCancel,
+  onConfirm,
+  onConfirmationChange,
+  tool,
+}: {
+  deleting: boolean;
+  onCancel: (id: string) => void;
+  onConfirm: (id: string) => void;
+  onConfirmationChange: (id: string, value: string) => void;
+  tool: SpaceDeleteToolMessage;
+}) {
+  const { locale, t } = useI18n();
+  const isPermanent = tool.mode === "permanent";
+  const isFile = tool.item?.kind === "file";
+  const confirmationPhrase = permanentDeleteConfirmation(tool.path);
+  const canConfirm =
+    Boolean(tool.item) &&
+    tool.status === "pending" &&
+    !deleting &&
+    (!isPermanent || tool.confirmationInput === confirmationPhrase);
+  const actionLabel = isPermanent
+    ? t("space.directoryAction.permanent")
+    : t("space.directoryAction.trash");
+  const statusLabel = getDeleteToolStatusLabel(tool.status, t);
+  const StatusIcon = getDeleteToolStatusIcon(tool.status);
+
+  return (
+    <div className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-2">
+      <span className="grid size-7 place-items-center rounded-md bg-[#edf1ef] text-[#145c53]">
+        <Bot size={15} />
+      </span>
+      <div className="min-w-0 rounded-lg border border-[#dfe6e2] bg-white px-3 py-3 text-[13px] text-[#2e3640] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className={cn(
+                "grid size-7 shrink-0 place-items-center rounded-md",
+                isPermanent
+                  ? "bg-[#fff1f0] text-[#b42318]"
+                  : "bg-[#edf1ef] text-[#145c53]",
+              )}
+            >
+              {isPermanent ? <ShieldAlert size={15} /> : <Trash2 size={15} />}
+            </span>
+            <div className="min-w-0">
+              <strong className="block text-[13px] font-[720] leading-tight text-[#151b22]">
+                {t("space.toolDelete.title")}
+              </strong>
+              <span className="mt-1 block text-xs leading-tight text-[#69727d]">
+                {t("space.toolDelete.deletePath")} · {actionLabel}
+              </span>
+            </div>
+          </div>
+
+          <span
+            className={cn(
+              "inline-flex h-6 items-center gap-1 rounded-md border px-2 text-[11px] font-[680]",
+              tool.status === "pending" && "border-[#d9dedc] bg-[#fbfbfa] text-[#69727d]",
+              tool.status === "running" && "border-[#cde5dc] bg-[#eef8f4] text-[#145c53]",
+              tool.status === "done" && "border-[#cde5dc] bg-[#eef8f4] text-[#145c53]",
+              tool.status === "cancelled" && "border-[#e2e5e9] bg-[#f6f7f8] text-[#69727d]",
+              tool.status === "error" && "border-[#f2c9c3] bg-[#fff5f3] text-[#b42318]",
+            )}
+          >
+            <StatusIcon
+              className={tool.status === "running" ? "animate-spin" : undefined}
+              size={13}
+            />
+            {statusLabel}
+          </span>
+        </div>
+
+        <div className="mt-3 grid gap-2 text-xs leading-relaxed text-[#4f5965]">
+          <span>
+            {t("space.toolDelete.agentReason", {
+              reason: tool.reason || t("common.none"),
+            })}
+          </span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-[680] text-[#151b22]">{actionLabel}</span>
+            {tool.item ? (
+              <span className="font-[680] text-[#151b22]">{formatSize(tool.item.size)}</span>
+            ) : null}
+            {tool.item ? (
+              <span>
+                {isFile
+                  ? t("space.pathDelete.fileScope")
+                  : t("space.directoryDelete.scope", {
+                      files: formatCount(tool.item.files, locale),
+                      dirs: formatCount(tool.item.dirs + 1, locale),
+                    })}
+              </span>
+            ) : null}
+          </div>
+          <code className="break-all rounded-md border border-[#ecefed] bg-[#fbfbfa] px-2 py-1 font-mono text-[11px] text-[#151b22]">
+            {tool.path}
+          </code>
+          {tool.result ? (
+            <span className="font-[680] text-[#145c53]">
+              {t("space.toolDelete.result", {
+                size: formatSize(tool.result.released_size),
+              })}
+            </span>
+          ) : null}
+          {tool.error ? (
+            <span className="font-[680] text-[#b42318]">{tool.error}</span>
+          ) : null}
+        </div>
+
+        {isPermanent && tool.status === "pending" && tool.item ? (
+          <div className="mt-3 grid gap-2">
+            <span className="text-xs font-semibold text-[#3b3f45]">
+              {t("space.toolDelete.permanentNeedsPhrase")}
+            </span>
+            <code className="break-all rounded-md border border-[#e5e5e5] bg-[#f7f7f7] px-2 py-1 font-mono text-[11px] text-[#111111]">
+              {confirmationPhrase}
+            </code>
+            <Input
+              aria-label={t("space.directoryDelete.confirmationInput")}
+              className="h-8 bg-white text-xs"
+              disabled={deleting}
+              onChange={(event) => onConfirmationChange(tool.id, event.target.value)}
+              placeholder={t("space.directoryDelete.confirmationInput")}
+              value={tool.confirmationInput}
+            />
+          </div>
+        ) : null}
+
+        {tool.status === "pending" ? (
+          <div className="mt-3 flex flex-wrap justify-end gap-2">
+            <Button
+              className="h-8 px-2 text-xs"
+              disabled={deleting}
+              onClick={() => onCancel(tool.id)}
+              variant="outline"
+            >
+              <XCircle size={13} />
+              {t("space.toolDelete.cancel")}
+            </Button>
+            <Button
+              className="h-8 px-2 text-xs"
+              disabled={!canConfirm}
+              onClick={() => onConfirm(tool.id)}
+              variant={isPermanent ? "destructive" : "default"}
+            >
+              {isPermanent ? <ShieldAlert size={13} /> : <Trash2 size={13} />}
+              {t("space.toolDelete.confirm")}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -794,6 +1079,39 @@ function AiTypingIndicator({ label }: { label: string }) {
       </div>
     </div>
   );
+}
+
+function getDeleteToolStatusLabel(
+  status: SpaceDeleteToolStatus,
+  t: ReturnType<typeof useI18n>["t"],
+) {
+  switch (status) {
+    case "pending":
+      return t("space.toolDelete.statusPending");
+    case "running":
+      return t("space.toolDelete.statusRunning");
+    case "done":
+      return t("space.toolDelete.statusDone");
+    case "cancelled":
+      return t("space.toolDelete.statusCancelled");
+    case "error":
+      return t("space.toolDelete.statusError");
+  }
+}
+
+function getDeleteToolStatusIcon(status: SpaceDeleteToolStatus) {
+  switch (status) {
+    case "running":
+      return Loader2;
+    case "done":
+      return CheckCircle2;
+    case "cancelled":
+      return XCircle;
+    case "error":
+      return AlertTriangle;
+    case "pending":
+      return ShieldAlert;
+  }
 }
 
 function SpaceTreeSidebar({
@@ -991,6 +1309,50 @@ function collectTopItems(root: SpaceScanNode): SpaceAiReportItem[] {
   return items.map(toAiReportItem);
 }
 
+function buildAiChatRenderItems(
+  messages: SpaceAiChatMessage[],
+  deleteToolMessages: SpaceDeleteToolMessage[],
+): SpaceAiChatRenderItem[] {
+  const toolsByAssistantIndex = new Map<number, SpaceDeleteToolMessage[]>();
+  for (const tool of deleteToolMessages) {
+    const tools = toolsByAssistantIndex.get(tool.assistantIndex) ?? [];
+    tools.push(tool);
+    toolsByAssistantIndex.set(tool.assistantIndex, tools);
+  }
+
+  const items: SpaceAiChatRenderItem[] = [];
+  messages.forEach((message, index) => {
+    if (message.role === "user" || message.content.trim().length > 0) {
+      items.push({
+        type: "message",
+        key: `${message.role}-${index}-${message.content.length}`,
+        message,
+      });
+    }
+
+    const tools = toolsByAssistantIndex.get(index) ?? [];
+    for (const tool of tools) {
+      items.push({
+        type: "deleteTool",
+        key: `delete-tool-${tool.id}`,
+        tool,
+      });
+    }
+  });
+
+  for (const tool of deleteToolMessages) {
+    if (tool.assistantIndex >= messages.length) {
+      items.push({
+        type: "deleteTool",
+        key: `delete-tool-${tool.id}`,
+        tool,
+      });
+    }
+  }
+
+  return items;
+}
+
 function findScannedItem(root: SpaceScanNode, path: string): SpaceAiReportItem | null {
   const normalizedPath = path.trim();
   if (!normalizedPath) {
@@ -1042,6 +1404,11 @@ function permanentDeleteConfirmation(path: string) {
 
 function createAiStreamRequestId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function createDeleteToolMessageId(toolCall: SpaceAiToolCall) {
+  const base = toolCall.id.trim() || toolCall.name;
+  return `${base}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function updateAssistantMessage(
