@@ -24,7 +24,7 @@ struct ReadPathInfoToolArguments {
     reason: Option<String>,
 }
 
-pub(super) fn has_auto_tool_call(tool_calls: &[SpaceAiToolCall]) -> bool {
+pub(super) fn needs_react_observation(tool_calls: &[SpaceAiToolCall]) -> bool {
     tool_calls
         .iter()
         .any(|tool_call| tool_call.name == TOOL_READ_PATH_INFO)

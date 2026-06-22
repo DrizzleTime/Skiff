@@ -1,5 +1,5 @@
 use super::{
-    payload::build_completion_payload,
+    payload::{build_completion_payload, ToolChoice},
     runtime::{build_client as build_runtime_client, SpaceAiRuntime},
     stream::{handle_stream_line, StreamAccumulator},
     tools::parse_space_tool_call,
@@ -16,9 +16,10 @@ pub(super) async fn request_completion_once(
     client: &reqwest::Client,
     ai: &SpaceAiRuntime,
     request: &SpaceAiAnalysisRequest,
+    tool_choice: ToolChoice,
     extra_messages: &[Value],
 ) -> Result<SpaceAiAnalysisResult, String> {
-    let payload = build_completion_payload(request, ai.model(), false, extra_messages);
+    let payload = build_completion_payload(request, ai.model(), false, tool_choice, extra_messages);
     let response = ai
         .request(client, &payload)
         .send()
@@ -56,13 +57,14 @@ pub(super) async fn stream_completion_once<F>(
     client: &reqwest::Client,
     ai: &SpaceAiRuntime,
     request: &SpaceAiAnalysisRequest,
+    tool_choice: ToolChoice,
     extra_messages: &[Value],
     on_delta: &mut F,
 ) -> Result<SpaceAiAnalysisResult, String>
 where
     F: FnMut(String),
 {
-    let payload = build_completion_payload(request, ai.model(), true, extra_messages);
+    let payload = build_completion_payload(request, ai.model(), true, tool_choice, extra_messages);
     let response = ai
         .request(client, &payload)
         .send()

@@ -2,23 +2,38 @@ use super::tools::build_tools;
 use crate::models::{SpaceAiAnalysisRequest, SpaceAiChatMessage};
 use serde_json::{json, Value};
 
+#[derive(Clone, Copy)]
+pub(super) enum ToolChoice {
+    Auto,
+    None,
+}
+
 pub(super) fn build_completion_payload(
     request: &SpaceAiAnalysisRequest,
     model: &str,
     stream: bool,
+    tool_choice: ToolChoice,
     extra_messages: &[Value],
 ) -> Value {
     let mut messages = build_chat_payload(request);
     messages.extend(extra_messages.iter().cloned());
 
-    json!({
-        "model": model,
-        "messages": messages,
-        "tools": build_tools(),
-        "tool_choice": "auto",
-        "temperature": 0.2,
-        "stream": stream
-    })
+    match tool_choice {
+        ToolChoice::Auto => json!({
+            "model": model,
+            "messages": messages,
+            "tools": build_tools(),
+            "tool_choice": "auto",
+            "temperature": 0.2,
+            "stream": stream
+        }),
+        ToolChoice::None => json!({
+            "model": model,
+            "messages": messages,
+            "temperature": 0.2,
+            "stream": stream
+        }),
+    }
 }
 
 fn build_chat_payload(request: &SpaceAiAnalysisRequest) -> Vec<Value> {
@@ -50,7 +65,7 @@ fn build_chat_payload(request: &SpaceAiAnalysisRequest) -> Vec<Value> {
 fn build_system_message(request: &SpaceAiAnalysisRequest) -> String {
     format!(
         "{}\n\n当前扫描结果：\n{}",
-        "你是磁盘空间分析助手。只基于用户提供的扫描结果判断，不编造未扫描路径。回答使用 Markdown，不要把整段回答包进代码块。输出中文，直说结论、风险和下一步操作。不要建议直接删除系统目录、应用主目录或未知业务数据；高风险项必须提示通过官方卸载器、应用内清理或先备份。你可以调用 read_path_info 工具读取当前扫描结果中某个文件或目录的详细信息，这是只读操作，会自动执行。你可以调用 delete_path 工具请求删除扫描结果中的文件或目录，但工具请求只会进入用户对话内确认卡片，不会自动执行。需要删除时必须调用 delete_path，不要输出 rm、del、Remove-Item 或其他 shell 删除命令。",
+        "你是磁盘空间分析助手。只基于用户提供的扫描结果判断，不编造未扫描路径。回答使用 Markdown，不要把整段回答包进代码块。输出中文，直说结论、风险和下一步操作。\n\n工作方式使用 ReAct：先判断当前信息是否足够；信息不足时调用 read_path_info 作为 Action 读取路径信息；收到 Observation 后继续判断；需要清理时调用 delete_path 生成用户确认请求。不要输出 Thought、Action、Observation 字样，也不要暴露内部推理过程。\n\n安全边界：不要建议直接删除系统目录、应用主目录或未知业务数据；高风险项必须提示通过官方卸载器、应用内清理或先备份。read_path_info 是只读操作，会自动执行。delete_path 只会进入用户对话内确认卡片，不会自动执行。需要删除时必须调用 delete_path，不要输出 rm、del、Remove-Item 或其他 shell 删除命令。",
         build_space_context(request)
     )
 }
@@ -108,4 +123,41 @@ fn truncate_chars(value: &str, limit: usize) -> String {
     }
 
     value.chars().take(limit).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn auto_payload_includes_tools() {
+        let payload =
+            build_completion_payload(&request(), "test-model", false, ToolChoice::Auto, &[]);
+
+        assert_eq!(payload["tool_choice"], "auto");
+        assert!(payload["tools"].is_array());
+    }
+
+    #[test]
+    fn final_payload_omits_tools() {
+        let payload =
+            build_completion_payload(&request(), "test-model", true, ToolChoice::None, &[]);
+
+        assert!(payload.get("tool_choice").is_none());
+        assert!(payload.get("tools").is_none());
+        assert_eq!(payload["stream"], true);
+    }
+
+    fn request() -> SpaceAiAnalysisRequest {
+        SpaceAiAnalysisRequest {
+            path: "/tmp/root".to_string(),
+            total_size: 0,
+            total_files: 0,
+            total_dirs: 0,
+            unreadable_entries: 0,
+            top_items: Vec::new(),
+            items: Vec::new(),
+            messages: Vec::new(),
+        }
+    }
 }
