@@ -169,18 +169,38 @@ pub async fn stream_directory_space_analysis(
 
     let delta_app = app.clone();
     let delta_request_id = stream_request_id.clone();
-    match stream_space_report(&settings, request, move |delta| {
-        let _ = delta_app.emit(
-            SPACE_AI_STREAM_EVENT,
-            SpaceAiStreamEvent {
-                request_id: delta_request_id.clone(),
-                kind: "delta".to_string(),
-                delta,
-                result: None,
-                error: None,
-            },
-        );
-    })
+    let tool_app = app.clone();
+    let tool_request_id = stream_request_id.clone();
+    match stream_space_report(
+        &settings,
+        request,
+        move |delta| {
+            let _ = delta_app.emit(
+                SPACE_AI_STREAM_EVENT,
+                SpaceAiStreamEvent {
+                    request_id: delta_request_id.clone(),
+                    kind: "delta".to_string(),
+                    delta,
+                    result: None,
+                    tool_calls: Vec::new(),
+                    error: None,
+                },
+            );
+        },
+        move |tool_calls| {
+            let _ = tool_app.emit(
+                SPACE_AI_STREAM_EVENT,
+                SpaceAiStreamEvent {
+                    request_id: tool_request_id.clone(),
+                    kind: "tool".to_string(),
+                    delta: String::new(),
+                    result: None,
+                    tool_calls,
+                    error: None,
+                },
+            );
+        },
+    )
     .await
     {
         Ok(result) => {
@@ -191,6 +211,7 @@ pub async fn stream_directory_space_analysis(
                     kind: "done".to_string(),
                     delta: String::new(),
                     result: Some(result),
+                    tool_calls: Vec::new(),
                     error: None,
                 },
             );
@@ -204,6 +225,7 @@ pub async fn stream_directory_space_analysis(
                     kind: "error".to_string(),
                     delta: String::new(),
                     result: None,
+                    tool_calls: Vec::new(),
                     error: Some(err.clone()),
                 },
             );

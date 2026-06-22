@@ -80,6 +80,7 @@ pub struct SpaceAiStreamEvent {
     pub kind: String,
     pub delta: String,
     pub result: Option<SpaceAiAnalysisResult>,
+    pub tool_calls: Vec<SpaceAiToolCall>,
     pub error: Option<String>,
 }
 

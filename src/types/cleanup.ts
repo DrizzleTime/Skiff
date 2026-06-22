@@ -374,9 +374,10 @@ export type SpaceAiAnalysisResult = {
 
 export type SpaceAiStreamEvent = {
   request_id: string;
-  kind: "delta" | "done" | "error";
+  kind: "delta" | "tool" | "done" | "error";
   delta: string;
   result: SpaceAiAnalysisResult | null;
+  tool_calls: SpaceAiToolCall[];
   error: string | null;
 };
 

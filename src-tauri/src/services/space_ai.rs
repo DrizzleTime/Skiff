@@ -4,7 +4,7 @@ mod runtime;
 mod stream;
 mod tools;
 
-use crate::models::{AppSettings, SpaceAiAnalysisRequest, SpaceAiAnalysisResult};
+use crate::models::{AppSettings, SpaceAiAnalysisRequest, SpaceAiAnalysisResult, SpaceAiToolCall};
 use client::{build_client, request_completion_once, stream_completion_once};
 use runtime::SpaceAiRuntime;
 use tools::{
@@ -43,13 +43,15 @@ pub async fn analyze_space_report(
     Ok(ai.analysis_result(String::new(), collected_tool_calls))
 }
 
-pub async fn stream_space_report<F>(
+pub async fn stream_space_report<F, G>(
     settings: &AppSettings,
     request: SpaceAiAnalysisRequest,
     mut on_delta: F,
+    mut on_tool_calls: G,
 ) -> Result<SpaceAiAnalysisResult, String>
 where
     F: FnMut(String) + Send,
+    G: FnMut(Vec<SpaceAiToolCall>) + Send,
 {
     let ai = SpaceAiRuntime::from_settings(settings)?;
     let client = build_client()?;
@@ -70,6 +72,9 @@ where
         }
 
         let resolved_tool_calls = resolve_space_tool_calls(&request, result.tool_calls);
+        if !resolved_tool_calls.is_empty() {
+            on_tool_calls(resolved_tool_calls.clone());
+        }
         extra_messages.push(build_assistant_tool_call_message(
             result.content.as_str(),
             &resolved_tool_calls,
