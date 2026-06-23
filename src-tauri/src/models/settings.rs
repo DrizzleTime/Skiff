@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_LARGE_FILE_MIN_SIZE: u64 = 500 * 1024 * 1024;
 pub const DEFAULT_DUPLICATE_MIN_SIZE: u64 = 10 * 1024 * 1024;
 pub const DEFAULT_CLOSE_TO_TRAY: bool = true;
-pub const DEFAULT_SHOW_ADVANCED_FEATURES: bool = false;
+pub const DEFAULT_SHOW_ADVANCED_FEATURES: bool = true;
 pub const DEFAULT_AI_ENDPOINT: &str = "https://api.openai.com/v1/chat/completions";
 pub const DEFAULT_AI_MODEL: &str = "gpt-4o-mini";
 

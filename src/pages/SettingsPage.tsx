@@ -52,7 +52,7 @@ export function SettingsPage({
   const [scanPaths, setScanPaths] = useState<string[]>([]);
   const [scanPathInput, setScanPathInput] = useState("");
   const [closeToTray, setCloseToTray] = useState(true);
-  const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(false);
+  const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(true);
   const [aiEndpoint, setAiEndpoint] = useState("");
   const [aiApiKey, setAiApiKey] = useState("");
   const [aiModel, setAiModel] = useState("");

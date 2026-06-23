@@ -134,7 +134,7 @@ function App() {
   const [agentScanResult, setAgentScanResult] = useState<AgentThreadScanResult | null>(null);
   const [packageScanResult, setPackageScanResult] = useState<PackageScanResult | null>(null);
   const [packageScanIncludesSystem, setPackageScanIncludesSystem] = useState(false);
-  const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(false);
+  const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(true);
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [appPlatform, setAppPlatform] = useState<AppInfo["platform"]>(getInitialAppPlatform);
   const [pageChrome, setPageChrome] = useState<PageChromeConfig>(null);
@@ -249,7 +249,7 @@ function App() {
       const settings = await invoke<AppSettings>("get_settings");
       setShowAdvancedFeatures(settings.show_advanced_features);
     } catch {
-      setShowAdvancedFeatures(false);
+      setShowAdvancedFeatures(true);
     }
   }
 
