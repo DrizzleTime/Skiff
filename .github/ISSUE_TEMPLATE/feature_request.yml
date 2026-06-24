@@ -1,0 +1,59 @@
+name: Feature request / 功能建议
+description: Suggest an improvement for Skiff / 为 Skiff 提出改进建议
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please describe the problem first, then the proposed solution.
+
+        请先描述要解决的问题，再描述建议方案。
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary / 需求概述
+      description: What should Skiff support or improve? / 希望 Skiff 支持或改进什么？
+      placeholder: Add support for excluding specific folders from duplicate file scans...
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / 要解决的问题
+      description: What problem does this feature solve? / 这个功能要解决什么实际问题？
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution / 建议方案
+      description: Describe the simplest behavior that would solve the problem. / 描述能解决问题的最简单行为。
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: platforms
+    attributes:
+      label: Target platforms / 影响平台
+      options:
+        - label: Linux
+        - label: macOS
+        - label: Windows
+        - label: CLI
+        - label: All platforms / 全部平台
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives or workaround / 替代方案或临时处理方式
+      description: Are there existing ways to solve this without a new feature? / 现在是否有其他方式可以解决？
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context / 补充信息
+      description: Add screenshots, examples, links, or notes if useful. / 如有截图、示例、链接或说明，可以补充。

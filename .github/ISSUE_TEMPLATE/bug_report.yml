@@ -1,0 +1,143 @@
+name: Bug report / 问题反馈
+description: Report a reproducible problem in Skiff / 反馈 Skiff 中可复现的问题
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please provide enough information for reproduction.
+
+        感谢反馈问题。请提供足够的信息，方便复现和定位。
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary / 问题概述
+      description: What happened? / 发生了什么？
+      placeholder: Skiff crashes when scanning duplicate files...
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: Skiff version / Skiff 版本
+      description: The version shown in the app or release package. / 应用内或安装包对应的版本。
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system / 操作系统
+      options:
+        - Linux
+        - macOS
+        - Windows
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version / 系统版本
+      description: Include distro or edition if relevant. / 如有必要，请包含发行版或系统版本。
+      placeholder: "macOS 15.5 / Windows 11 24H2 / Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: architecture
+    attributes:
+      label: CPU architecture / CPU 架构
+      options:
+        - x86_64 / amd64
+        - arm64 / aarch64
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install-source
+    attributes:
+      label: Install source / 安装来源
+      options:
+        - GitHub Releases
+        - Local build / 本地构建
+        - Development mode / 开发模式
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area / 相关功能
+      options:
+        - Disk overview / 磁盘总览
+        - Junk cleanup / 垃圾清理
+        - Large file scan / 大文件扫描
+        - Duplicate file scan / 重复文件扫描
+        - App cleanup / 应用清理
+        - CLI
+        - Settings / 设置
+        - Tray or window behavior / 托盘或窗口行为
+        - Other / 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: destructive-action
+    attributes:
+      label: Did this involve cleanup, deletion, or uninstalling? / 是否涉及清理、删除或卸载？
+      options:
+        - No / 否
+        - Yes, moved files to trash / 是，文件被移入回收站
+        - Yes, cleaned cache files / 是，清理了缓存文件
+        - Yes, uninstalled an app or package / 是，卸载了应用或软件包
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce / 复现步骤
+      description: List the exact actions that trigger the problem. / 请列出触发问题的具体操作。
+      placeholder: |
+        1. Open Skiff
+        2. Go to Duplicate file scan
+        3. Click Start scan
+        4. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-result
+    attributes:
+      label: Actual result / 实际结果
+      description: What actually happened? / 实际发生了什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-result
+    attributes:
+      label: Expected result / 预期结果
+      description: What did you expect to happen? / 你期望发生什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots / 日志或截图
+      description: Paste logs, terminal output, or attach screenshots if available. / 如有日志、终端输出或截图，请粘贴或上传。
+      render: text
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context / 补充信息
+      description: Anything else that may help locate the issue. / 其他有助于定位问题的信息。
