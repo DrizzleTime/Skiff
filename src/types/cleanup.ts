@@ -140,12 +140,17 @@ export type AppSettings = {
   close_to_tray: boolean;
   show_advanced_features: boolean;
   language: LanguagePreference;
+  ai_protocol: AiProtocol;
   ai_endpoint: string;
   ai_api_key: string;
   ai_model: string;
 };
 
 export type LanguagePreference = "system" | "zh-CN" | "en-US";
+export type AiProtocol =
+  | "openai_chat_completions"
+  | "openai_responses"
+  | "anthropic_messages";
 
 export type EnvShell = "zsh" | "bash" | "fish" | "powershell" | "cmd";
 export type EnvEntryKind = "variable" | "path";

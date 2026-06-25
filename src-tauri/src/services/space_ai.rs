@@ -6,14 +6,12 @@ mod tools;
 
 use crate::models::{AppSettings, SpaceAiAnalysisRequest, SpaceAiAnalysisResult, SpaceAiToolCall};
 use client::{build_client, request_completion_once, stream_completion_once};
-use payload::ToolChoice;
-use runtime::SpaceAiRuntime;
-use serde_json::{json, Value};
-use tools::needs_react_observation;
-use tools::{
-    build_assistant_tool_call_message, build_tool_result_messages, merge_tool_calls,
-    resolve_space_tool_calls,
+use payload::{
+    assistant_tool_call_message, tool_result_message, user_text_message, ExtraMessage, ToolChoice,
 };
+use runtime::SpaceAiRuntime;
+use tools::needs_react_observation;
+use tools::{merge_tool_calls, resolve_space_tool_calls};
 
 const MAX_REACT_TOOL_ROUNDS: usize = 5;
 
@@ -118,7 +116,7 @@ async fn request_final_react_answer(
     client: &reqwest::Client,
     ai: &SpaceAiRuntime,
     request: &SpaceAiAnalysisRequest,
-    extra_messages: &[Value],
+    extra_messages: &[ExtraMessage],
     collected_tool_calls: Vec<SpaceAiToolCall>,
 ) -> Result<SpaceAiAnalysisResult, String> {
     let final_messages = final_react_messages(extra_messages);
@@ -132,7 +130,7 @@ async fn stream_final_react_answer<F>(
     client: &reqwest::Client,
     ai: &SpaceAiRuntime,
     request: &SpaceAiAnalysisRequest,
-    extra_messages: &[Value],
+    extra_messages: &[ExtraMessage],
     collected_tool_calls: Vec<SpaceAiToolCall>,
     streamed_content: &mut String,
     on_delta: &mut F,
@@ -159,23 +157,17 @@ where
 }
 
 fn append_react_observation_messages(
-    extra_messages: &mut Vec<Value>,
+    extra_messages: &mut Vec<ExtraMessage>,
     action_content: &str,
     tool_calls: &[SpaceAiToolCall],
 ) {
-    extra_messages.push(build_assistant_tool_call_message(
-        action_content,
-        tool_calls,
-    ));
-    extra_messages.extend(build_tool_result_messages(tool_calls));
+    extra_messages.push(assistant_tool_call_message(action_content, tool_calls));
+    extra_messages.push(tool_result_message(tool_calls));
 }
 
-fn final_react_messages(extra_messages: &[Value]) -> Vec<Value> {
+fn final_react_messages(extra_messages: &[ExtraMessage]) -> Vec<ExtraMessage> {
     let mut messages = extra_messages.to_vec();
-    messages.push(json!({
-        "role": "user",
-        "content": "工具观察轮次已达到上限。请停止调用工具，直接基于当前扫描结果和已经返回的工具观察结果，输出最终中文结论、风险和下一步操作。",
-    }));
+    messages.push(user_text_message("工具观察轮次已达到上限。请停止调用工具，直接基于当前扫描结果和已经返回的工具观察结果，输出最终中文结论、风险和下一步操作。"));
     messages
 }
 

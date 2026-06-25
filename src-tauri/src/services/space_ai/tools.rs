@@ -30,57 +30,101 @@ pub(super) fn needs_react_observation(tool_calls: &[SpaceAiToolCall]) -> bool {
         .any(|tool_call| tool_call.name == TOOL_READ_PATH_INFO)
 }
 
-pub(super) fn build_tools() -> Vec<Value> {
+pub(super) fn build_chat_tools() -> Vec<Value> {
+    tool_specs()
+        .into_iter()
+        .map(|spec| {
+            json!({
+                "type": "function",
+                "function": {
+                    "name": spec.name,
+                    "description": spec.description,
+                    "parameters": spec.parameters,
+                }
+            })
+        })
+        .collect()
+}
+
+pub(super) fn build_responses_tools() -> Vec<Value> {
+    tool_specs()
+        .into_iter()
+        .map(|spec| {
+            json!({
+                "type": "function",
+                "name": spec.name,
+                "description": spec.description,
+                "parameters": spec.parameters,
+                "strict": true,
+            })
+        })
+        .collect()
+}
+
+pub(super) fn build_anthropic_tools() -> Vec<Value> {
+    tool_specs()
+        .into_iter()
+        .map(|spec| {
+            json!({
+                "name": spec.name,
+                "description": spec.description,
+                "input_schema": spec.parameters,
+            })
+        })
+        .collect()
+}
+
+struct ToolSpec {
+    name: &'static str,
+    description: &'static str,
+    parameters: Value,
+}
+
+fn tool_specs() -> Vec<ToolSpec> {
     vec![
-        json!({
-            "type": "function",
-            "function": {
-                "name": TOOL_READ_PATH_INFO,
-                "description": "读取当前空间扫描结果中某个文件或目录的只读信息，包括大小、文件数、目录数和已扫描的直接子项。不会删除或修改任何内容。",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "要读取的绝对路径，必须来自当前扫描结果或用户引用的路径。"
-                        },
-                        "reason": {
-                            "type": "string",
-                            "description": "为什么需要读取该路径的信息。"
-                        }
+        ToolSpec {
+            name: TOOL_READ_PATH_INFO,
+            description: "读取当前空间扫描结果中某个文件或目录的只读信息，包括大小、文件数、目录数和已扫描的直接子项。不会删除或修改任何内容。",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "要读取的绝对路径，必须来自当前扫描结果或用户引用的路径。"
                     },
-                    "required": ["path", "reason"],
-                    "additionalProperties": false
-                }
-            }
-        }),
-        json!({
-            "type": "function",
-            "function": {
-                "name": TOOL_DELETE_PATH,
-                "description": "请求删除当前空间扫描结果中的一个文件或目录。应用会先展示对话内确认卡片，用户确认后才执行。",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "path": {
-                            "type": "string",
-                            "description": "要删除的绝对路径，必须来自当前扫描结果。"
-                        },
-                        "mode": {
-                            "type": "string",
-                            "enum": ["trash", "permanent"],
-                            "description": "trash 表示移入系统回收站；permanent 表示永久删除。默认使用 trash。"
-                        },
-                        "reason": {
-                            "type": "string",
-                            "description": "为什么建议删除该路径。"
-                        }
+                    "reason": {
+                        "type": "string",
+                        "description": "为什么需要读取该路径的信息。"
+                    }
+                },
+                "required": ["path", "reason"],
+                "additionalProperties": false
+            }),
+        },
+        ToolSpec {
+            name: TOOL_DELETE_PATH,
+            description: "请求删除当前空间扫描结果中的一个文件或目录。应用会先展示对话内确认卡片，用户确认后才执行。",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "要删除的绝对路径，必须来自当前扫描结果。"
                     },
-                    "required": ["path", "mode", "reason"],
-                    "additionalProperties": false
-                }
-            }
-        }),
+                    "mode": {
+                        "type": "string",
+                        "enum": ["trash", "permanent"],
+                        "description": "trash 表示移入系统回收站；permanent 表示永久删除。默认使用 trash。"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "为什么建议删除该路径。"
+                    }
+                },
+                "required": ["path", "mode", "reason"],
+                "additionalProperties": false
+            }),
+        },
     ]
 }
 
@@ -194,65 +238,23 @@ fn is_direct_child_path(parent: &str, child: &str) -> bool {
         .is_some_and(|candidate_parent| candidate_parent == Path::new(parent))
 }
 
-pub(super) fn build_assistant_tool_call_message(
-    content: &str,
-    tool_calls: &[SpaceAiToolCall],
-) -> Value {
-    let content_value = if content.trim().is_empty() {
-        Value::Null
-    } else {
-        json!(content)
-    };
-
-    json!({
-        "role": "assistant",
-        "content": content_value,
-        "tool_calls": tool_calls
-            .iter()
-            .map(|tool_call| {
-                json!({
-                    "id": tool_call.id,
-                    "type": "function",
-                    "function": {
-                        "name": tool_call.name,
-                        "arguments": tool_arguments_json(tool_call),
-                    }
-                })
-            })
-            .collect::<Vec<_>>(),
-    })
-}
-
-pub(super) fn build_tool_result_messages(tool_calls: &[SpaceAiToolCall]) -> Vec<Value> {
-    tool_calls
-        .iter()
-        .map(|tool_call| {
-            let content = match tool_call.name.as_str() {
-                TOOL_READ_PATH_INFO => {
-                    serde_json::to_string(&tool_call.result).unwrap_or_else(|_| {
-                        "{\"error\":\"serialize read_path_info result failed\"}".to_string()
-                    })
-                }
-                TOOL_DELETE_PATH => json!({
-                    "queued_for_user_confirmation": true,
-                    "path": tool_call.arguments.path,
-                    "mode": tool_call.arguments.mode.as_deref().unwrap_or("trash"),
-                    "reason": tool_call.arguments.reason,
-                })
-                .to_string(),
-                _ => "{}".to_string(),
-            };
-
-            json!({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": content,
-            })
+pub(super) fn tool_result_content(tool_call: &SpaceAiToolCall) -> String {
+    match tool_call.name.as_str() {
+        TOOL_READ_PATH_INFO => serde_json::to_string(&tool_call.result).unwrap_or_else(|_| {
+            "{\"error\":\"serialize read_path_info result failed\"}".to_string()
+        }),
+        TOOL_DELETE_PATH => json!({
+            "queued_for_user_confirmation": true,
+            "path": tool_call.arguments.path,
+            "mode": tool_call.arguments.mode.as_deref().unwrap_or("trash"),
+            "reason": tool_call.arguments.reason,
         })
-        .collect()
+        .to_string(),
+        _ => "{}".to_string(),
+    }
 }
 
-fn tool_arguments_json(tool_call: &SpaceAiToolCall) -> String {
+pub(super) fn tool_arguments_json(tool_call: &SpaceAiToolCall) -> String {
     match tool_call.name.as_str() {
         TOOL_DELETE_PATH => json!({
             "path": tool_call.arguments.path,
