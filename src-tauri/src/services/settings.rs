@@ -1,11 +1,11 @@
 use crate::models::AppSettings;
 use std::{
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
 pub fn read_settings(home: &Path) -> Result<AppSettings, String> {
-    let path = settings_path(home);
+    let path = readable_settings_path(home);
     if !path.exists() {
         return Ok(AppSettings::default());
     }
@@ -26,5 +26,37 @@ pub fn write_settings(home: &Path, settings: &AppSettings) -> Result<(), String>
 }
 
 fn settings_path(home: &Path) -> PathBuf {
+    config_dir(home).join("skiff").join("settings.json")
+}
+
+fn readable_settings_path(home: &Path) -> PathBuf {
+    let path = settings_path(home);
+    if path.exists() {
+        return path;
+    }
+
+    let legacy_path = legacy_settings_path(home);
+    if legacy_path != path && legacy_path.exists() {
+        return legacy_path;
+    }
+
+    path
+}
+
+fn config_dir(home: &Path) -> PathBuf {
+    if cfg!(target_os = "windows") {
+        return env::var_os("APPDATA")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join("AppData").join("Roaming"));
+    }
+
+    env::var_os("XDG_CONFIG_HOME")
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| home.join(".config"))
+}
+
+fn legacy_settings_path(home: &Path) -> PathBuf {
     home.join(".config").join("skiff").join("settings.json")
 }

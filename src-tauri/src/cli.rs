@@ -4,7 +4,7 @@ use crate::{
         agent_cleanup::{clean_agent_threads, scan_agent_threads},
         cleanup_targets::{clean_targets, cleanup_target_count, scan_targets},
         disk::read_disk_status,
-        files::{delete_files, find_duplicate_files, find_large_files, scan_roots},
+        files::{delete_files_in_scan_roots, find_duplicate_files, find_large_files, scan_roots},
         packages::{scan_installed_packages_without_icons, uninstall_selected_packages},
         settings::read_settings,
         system::{home_dir, Platform},
@@ -274,7 +274,10 @@ fn run_files_command(options: &GlobalOptions, args: &[String]) -> CliResult<i32>
             let params = parse_paths_and_yes(&args[1..], "files delete")?;
             require_yes(params.yes, "files delete")?;
             let home = resolve_home(options)?;
-            let result = delete_files(&home, &params.paths).map_err(|err| fail(1, err))?;
+            let settings = read_settings(&home).unwrap_or_else(|_| AppSettings::default());
+            let result =
+                delete_files_in_scan_roots(&home, &settings.file_scan_paths, &params.paths)
+                    .map_err(|err| fail(1, err))?;
             let code = if result.failed_count > 0 { 1 } else { 0 };
 
             if options.json {

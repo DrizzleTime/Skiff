@@ -146,10 +146,6 @@ fn resolve_scan_path(home: &Path, path_text: &str) -> Result<PathBuf, String> {
     if !path.is_dir() {
         return Err(format!("扫描路径不是目录：{path_text}"));
     }
-    if !path.starts_with(home) {
-        return Err(format!("扫描路径必须位于当前用户目录内：{path_text}"));
-    }
-
     Ok(path)
 }
 
@@ -368,15 +364,20 @@ pub fn find_duplicate_files(
     })
 }
 
-pub fn delete_files(home: &Path, paths: &[String]) -> Result<DeleteFilesResult, String> {
+pub fn delete_files_in_scan_roots(
+    home: &Path,
+    configured_paths: &[String],
+    paths: &[String],
+) -> Result<DeleteFilesResult, String> {
     let home = home
         .canonicalize()
         .map_err(|err| format!("无法校验 HOME 目录：{err}"))?;
+    let allowed_roots = allowed_delete_roots(&home, configured_paths);
     let mut items = Vec::new();
 
     for path_text in paths {
         let path = PathBuf::from(path_text);
-        let item = match delete_one_file(&home, &path) {
+        let item = match delete_one_file(&home, &allowed_roots, &path) {
             Ok(size) => DeleteFileItemResult {
                 path: path_text.clone(),
                 released_size: size,
@@ -441,7 +442,12 @@ fn collect_scan_files_from_dir(
     files: &mut Vec<FileItem>,
     scanned_files: &mut u64,
 ) -> io::Result<()> {
-    for entry in fs::read_dir(dir)? {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(_) => return Ok(()),
+    };
+
+    for entry in entries {
         let entry = match entry {
             Ok(entry) => entry,
             Err(_) => continue,
@@ -570,7 +576,14 @@ fn files_have_same_contents(left: &Path, right: &Path) -> io::Result<bool> {
     }
 }
 
-fn delete_one_file(home: &Path, path: &Path) -> Result<u64, String> {
+fn allowed_delete_roots(home: &Path, configured_paths: &[String]) -> Vec<PathBuf> {
+    scan_roots(home, configured_paths)
+        .into_iter()
+        .filter_map(|path| path.canonicalize().ok())
+        .collect()
+}
+
+fn delete_one_file(home: &Path, allowed_roots: &[PathBuf], path: &Path) -> Result<u64, String> {
     if !path.is_absolute() {
         return Err("只能删除绝对路径文件。".to_string());
     }
@@ -583,8 +596,12 @@ fn delete_one_file(home: &Path, path: &Path) -> Result<u64, String> {
     let canonical_path = path
         .canonicalize()
         .map_err(|err| format!("校验文件路径失败：{err}"))?;
-    if !canonical_path.starts_with(home) {
-        return Err("只能删除当前用户目录下的文件。".to_string());
+    if !canonical_path.starts_with(home)
+        && !allowed_roots
+            .iter()
+            .any(|root| canonical_path.starts_with(root))
+    {
+        return Err("只能删除当前用户目录或已配置扫描目录下的文件。".to_string());
     }
 
     let size = metadata.len();
@@ -692,13 +709,22 @@ mod tests {
     }
 
     #[test]
-    fn normalize_scan_paths_rejects_paths_outside_home() {
+    fn normalize_scan_paths_accepts_existing_paths_outside_home() {
         let home = tempdir().expect("home");
         let outside = tempdir().expect("outside");
 
-        let result = normalize_scan_paths(home.path(), &[outside.path().display().to_string()]);
+        let paths = normalize_scan_paths(home.path(), &[outside.path().display().to_string()])
+            .expect("normalize outside path");
 
-        assert!(result.is_err());
+        assert_eq!(
+            paths,
+            vec![outside
+                .path()
+                .canonicalize()
+                .expect("canonical outside")
+                .display()
+                .to_string()]
+        );
     }
 
     #[test]

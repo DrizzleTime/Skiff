@@ -24,7 +24,8 @@ use crate::{
             scan_env_inventory as scan_env_inventory_items,
         },
         files::{
-            delete_files, find_duplicate_files, find_large_files, normalize_scan_paths, scan_roots,
+            delete_files_in_scan_roots, find_duplicate_files, find_large_files,
+            normalize_scan_paths, scan_roots,
         },
         packages::{
             load_package_icons as load_package_icon_items, scan_installed_packages_without_icons,
@@ -130,9 +131,13 @@ pub async fn scan_duplicate_files(
 #[tauri::command]
 pub async fn delete_user_files(request: DeleteFilesRequest) -> Result<DeleteFilesResult, String> {
     let home = home_dir()?;
-    tauri::async_runtime::spawn_blocking(move || delete_files(&home, &request.paths))
-        .await
-        .map_err(|err| format!("文件删除任务失败：{err}"))?
+    let settings = read_settings(&home).unwrap_or_default();
+    let file_scan_paths = settings.file_scan_paths;
+    tauri::async_runtime::spawn_blocking(move || {
+        delete_files_in_scan_roots(&home, &file_scan_paths, &request.paths)
+    })
+    .await
+    .map_err(|err| format!("文件删除任务失败：{err}"))?
 }
 
 #[tauri::command]
@@ -256,8 +261,7 @@ pub fn save_settings(app: AppHandle, settings: AppSettings) -> Result<AppSetting
     let mut settings = settings;
     settings.file_scan_paths = normalize_scan_paths(&home, &settings.file_scan_paths)?;
     write_settings(&home, &settings)?;
-    crate::tray::refresh_tray_menu(&app, settings.language)
-        .map_err(|err| format!("刷新托盘菜单失败：{err}"))?;
+    let _ = crate::tray::refresh_tray_menu(&app, settings.language);
     Ok(settings)
 }
 
