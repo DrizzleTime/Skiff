@@ -1,11 +1,9 @@
-# Skiff
-
 <div align="right">
   <a href="./README.md">English</a>
 </div>
 
 <div align="center">
-  <img src="src/assets/skiff-logo.svg" alt="Skiff" width="96" height="96" />
+  <img src="src-tauri/icons/tray.png" alt="Skiff" width="64" height="64" />
 
   <p>
     Skiff 是一个本地跨平台磁盘清理工具，用于在删除前检查缓存、应用、重复文件和大文件。
@@ -21,7 +19,26 @@
     <img alt="Bun" src="https://img.shields.io/badge/Bun-runtime-000000?logo=bun&logoColor=white" />
   </p>
 </div>
-<img src="https://shiyu.dev/uploads/2026/06/7ed68c3f-d0d0-4196-8251-36b92bbb3e2d-memoir.webp" />
+
+## 界面预览
+
+Skiff 提供两种主要流程：经典清理界面用于直接检查和处理文件，AI 空间分析界面用于理解空间占用并获取清理建议。
+
+### 经典清理工具界面
+
+查看磁盘占用、缓存清理目标、大文件、重复文件和应用清理项。
+
+<a href="https://shiyu.dev/uploads/2026/06/3d31c75b-196d-473c-88f9-0f04a78ec0c8.png">
+  <img src="https://shiyu.dev/uploads/2026/06/3d31c75b-196d-473c-88f9-0f04a78ec0c8.png" alt="Skiff 经典清理工具界面" width="100%" />
+</a>
+
+### AI 智能空间分析界面
+
+基于本地扫描结果分析空间占用，并给出可理解的清理建议。
+
+<a href="https://shiyu.dev/uploads/2026/06/5efe71a7-0751-415f-b772-662866e429f1.png">
+  <img src="https://shiyu.dev/uploads/2026/06/5efe71a7-0751-415f-b772-662866e429f1.png" alt="Skiff AI 智能空间分析界面" width="100%" />
+</a>
 
 ## 功能
 

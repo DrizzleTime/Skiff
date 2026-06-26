@@ -1,11 +1,9 @@
-# Skiff
-
 <div align="right">
   <a href="./README.zh-CN.md">简体中文</a>
 </div>
 
 <div align="center">
-  <img src="src/assets/skiff-logo.svg" alt="Skiff" width="96" height="96" />
+  <img src="src-tauri/icons/tray.png" alt="Skiff" width="64" height="64" />
 
   <p>
     Skiff is a local cross-platform disk cleanup tool for inspecting caches,
@@ -22,7 +20,26 @@
     <img alt="Bun" src="https://img.shields.io/badge/Bun-runtime-000000?logo=bun&logoColor=white" />
   </p>
 </div>
-<img src="https://shiyu.dev/uploads/2026/06/8ca11243-afbf-49d1-86b4-e025b1a2d237-memoir.webp" />
+
+## Interface Preview
+
+Skiff provides two main workflows: a classic cleanup interface for direct inspection and an AI-assisted analysis interface for understanding space usage.
+
+### Classic Cleanup Tool
+
+Check disk usage, cache cleanup targets, large files, duplicate files, and application cleanup items.
+
+<a href="https://shiyu.dev/uploads/2026/06/b7762be8-c277-48a9-b951-b02e10345c92.png">
+  <img src="https://shiyu.dev/uploads/2026/06/b7762be8-c277-48a9-b951-b02e10345c92.png" alt="Skiff classic cleanup tool interface" width="100%" />
+</a>
+
+### AI Smart Space Analysis
+
+Understand disk usage from local scan results and get readable cleanup suggestions.
+
+<a href="https://shiyu.dev/uploads/2026/06/12af9c6c-8672-46ee-92e1-0d7cf8c9de6c.png">
+  <img src="https://shiyu.dev/uploads/2026/06/12af9c6c-8672-46ee-92e1-0d7cf8c9de6c.png" alt="Skiff AI smart space analysis interface" width="100%" />
+</a>
 
 ## Features
 
