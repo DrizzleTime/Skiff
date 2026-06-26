@@ -147,6 +147,7 @@ export type AppSettings = {
 };
 
 export type LanguagePreference = "system" | "zh-CN" | "en-US";
+export type AppLocale = "zh-CN" | "en-US";
 export type AiProtocol =
   | "openai_chat_completions"
   | "openai_responses"
@@ -360,6 +361,7 @@ export type SpaceAiChatMessage = {
 };
 
 export type SpaceAiAnalysisRequest = {
+  locale: AppLocale;
   path: string;
   total_size: number;
   total_files: number;

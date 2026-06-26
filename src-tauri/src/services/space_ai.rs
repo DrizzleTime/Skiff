@@ -119,7 +119,7 @@ async fn request_final_react_answer(
     extra_messages: &[ExtraMessage],
     collected_tool_calls: Vec<SpaceAiToolCall>,
 ) -> Result<SpaceAiAnalysisResult, String> {
-    let final_messages = final_react_messages(extra_messages);
+    let final_messages = final_react_messages(request, extra_messages);
     let mut result =
         request_completion_once(client, ai, request, ToolChoice::None, &final_messages).await?;
     result.tool_calls = merge_tool_calls(collected_tool_calls, result.tool_calls);
@@ -138,7 +138,7 @@ async fn stream_final_react_answer<F>(
 where
     F: FnMut(String),
 {
-    let final_messages = final_react_messages(extra_messages);
+    let final_messages = final_react_messages(request, extra_messages);
     let result = stream_completion_once(
         client,
         ai,
@@ -165,10 +165,25 @@ fn append_react_observation_messages(
     extra_messages.push(tool_result_message(tool_calls));
 }
 
-fn final_react_messages(extra_messages: &[ExtraMessage]) -> Vec<ExtraMessage> {
+fn final_react_messages(
+    request: &SpaceAiAnalysisRequest,
+    extra_messages: &[ExtraMessage],
+) -> Vec<ExtraMessage> {
     let mut messages = extra_messages.to_vec();
-    messages.push(user_text_message("工具观察轮次已达到上限。请停止调用工具，直接基于当前扫描结果和已经返回的工具观察结果，输出最终中文结论、风险和下一步操作。"));
+    messages.push(user_text_message(final_react_prompt(&request.locale)));
     messages
+}
+
+fn final_react_prompt(locale: &str) -> &'static str {
+    if is_english_locale(locale) {
+        "The tool-observation round limit has been reached. Stop calling tools and answer directly in English based on the current scan result and the tool observations already returned. Include conclusions, risks, and next steps."
+    } else {
+        "工具观察轮次已达到上限。请停止调用工具，直接基于当前扫描结果和已经返回的工具观察结果，输出最终中文结论、风险和下一步操作。"
+    }
+}
+
+fn is_english_locale(locale: &str) -> bool {
+    locale.eq_ignore_ascii_case("en-US") || locale.to_ascii_lowercase().starts_with("en")
 }
 
 fn append_streamed_content(content: &mut String, segment: &str) {

@@ -37,6 +37,8 @@ pub struct SpaceScanResult {
 
 #[derive(Deserialize)]
 pub struct SpaceAiAnalysisRequest {
+    #[serde(default = "default_space_ai_locale")]
+    pub locale: String,
     pub path: String,
     pub total_size: u64,
     pub total_files: u64,
@@ -47,6 +49,10 @@ pub struct SpaceAiAnalysisRequest {
     pub items: Vec<SpaceAiReportItem>,
     #[serde(default)]
     pub messages: Vec<SpaceAiChatMessage>,
+}
+
+fn default_space_ai_locale() -> String {
+    "zh-CN".to_string()
 }
 
 #[derive(Clone, Deserialize, Serialize)]

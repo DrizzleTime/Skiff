@@ -60,7 +60,7 @@ import {
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { formatCount, formatSize } from "../lib/format";
-import { useI18n } from "../lib/i18n";
+import { useI18n, type Locale } from "../lib/i18n";
 import { cn } from "../lib/utils";
 import type {
   SpaceAiChatMessage,
@@ -367,7 +367,7 @@ export function SpaceAnalysisPage({
       try {
         await waitForNextFrame();
         const requestReferencedPaths = options?.reset ? [] : aiReferencedPaths;
-        const request = buildAiRequest(result, nextMessages, requestReferencedPaths);
+        const request = buildAiRequest(result, nextMessages, requestReferencedPaths, locale);
         const requestId = createAiStreamRequestId();
         const firstAssistantIndex = nextMessages.length;
         let activeAssistantIndex = firstAssistantIndex;
@@ -468,6 +468,7 @@ export function SpaceAnalysisPage({
       appendAgentReadToolCall,
       pageBusy,
       result,
+      locale,
       t,
     ],
   );
@@ -2083,8 +2084,10 @@ function buildAiRequest(
   result: SpaceScanResult,
   messages: SpaceAiChatMessage[],
   referencedPaths: string[],
+  locale: Locale,
 ): SpaceAiAnalysisRequest {
   return {
+    locale,
     path: result.root.path,
     total_size: result.total_size,
     total_files: result.total_files,

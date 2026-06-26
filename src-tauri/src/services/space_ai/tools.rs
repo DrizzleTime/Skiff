@@ -30,8 +30,8 @@ pub(super) fn needs_react_observation(tool_calls: &[SpaceAiToolCall]) -> bool {
         .any(|tool_call| tool_call.name == TOOL_READ_PATH_INFO)
 }
 
-pub(super) fn build_chat_tools() -> Vec<Value> {
-    tool_specs()
+pub(super) fn build_chat_tools(locale: &str) -> Vec<Value> {
+    tool_specs(locale)
         .into_iter()
         .map(|spec| {
             json!({
@@ -46,8 +46,8 @@ pub(super) fn build_chat_tools() -> Vec<Value> {
         .collect()
 }
 
-pub(super) fn build_responses_tools() -> Vec<Value> {
-    tool_specs()
+pub(super) fn build_responses_tools(locale: &str) -> Vec<Value> {
+    tool_specs(locale)
         .into_iter()
         .map(|spec| {
             json!({
@@ -61,8 +61,8 @@ pub(super) fn build_responses_tools() -> Vec<Value> {
         .collect()
 }
 
-pub(super) fn build_anthropic_tools() -> Vec<Value> {
-    tool_specs()
+pub(super) fn build_anthropic_tools(locale: &str) -> Vec<Value> {
+    tool_specs(locale)
         .into_iter()
         .map(|spec| {
             json!({
@@ -80,7 +80,55 @@ struct ToolSpec {
     parameters: Value,
 }
 
-fn tool_specs() -> Vec<ToolSpec> {
+fn tool_specs(locale: &str) -> Vec<ToolSpec> {
+    if is_english_locale(locale) {
+        return vec![
+            ToolSpec {
+                name: TOOL_READ_PATH_INFO,
+                description: "Read-only information for a file or directory in the current space scan result, including size, file count, directory count, and scanned direct children. It never deletes or modifies anything.",
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The absolute path to read. It must come from the current scan result or from a user-referenced path."
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "Why this path needs to be inspected."
+                        }
+                    },
+                    "required": ["path", "reason"],
+                    "additionalProperties": false
+                }),
+            },
+            ToolSpec {
+                name: TOOL_DELETE_PATH,
+                description: "Request deletion of a file or directory from the current space scan result. The app shows an in-chat confirmation card first, and deletion runs only after the user confirms.",
+                parameters: json!({
+                    "type": "object",
+                    "properties": {
+                        "path": {
+                            "type": "string",
+                            "description": "The absolute path to delete. It must come from the current scan result."
+                        },
+                        "mode": {
+                            "type": "string",
+                            "enum": ["trash", "permanent"],
+                            "description": "trash moves the item to the system trash; permanent deletes it permanently. Use trash by default."
+                        },
+                        "reason": {
+                            "type": "string",
+                            "description": "Why deleting this path is recommended."
+                        }
+                    },
+                    "required": ["path", "mode", "reason"],
+                    "additionalProperties": false
+                }),
+            },
+        ];
+    }
+
     vec![
         ToolSpec {
             name: TOOL_READ_PATH_INFO,
@@ -214,7 +262,7 @@ fn read_path_info_from_request(
         return SpaceAiPathInfoResult {
             item: None,
             children: Vec::new(),
-            error: Some(format!("当前扫描结果中没有找到路径：{normalized_path}")),
+            error: Some(missing_path_error(&request.locale, normalized_path)),
         };
     };
 
@@ -230,6 +278,18 @@ fn read_path_info_from_request(
         children,
         error: None,
     }
+}
+
+fn missing_path_error(locale: &str, path: &str) -> String {
+    if is_english_locale(locale) {
+        format!("Path not found in current scan result: {path}")
+    } else {
+        format!("当前扫描结果中没有找到路径：{path}")
+    }
+}
+
+fn is_english_locale(locale: &str) -> bool {
+    locale.eq_ignore_ascii_case("en-US") || locale.to_ascii_lowercase().starts_with("en")
 }
 
 fn is_direct_child_path(parent: &str, child: &str) -> bool {
@@ -312,6 +372,7 @@ mod tests {
     #[test]
     fn resolves_read_path_info_with_direct_children() {
         let request = SpaceAiAnalysisRequest {
+            locale: "zh-CN".to_string(),
             path: "/tmp/root".to_string(),
             total_size: 3,
             total_files: 2,

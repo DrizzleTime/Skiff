@@ -78,7 +78,7 @@ fn build_chat_completion_payload(
         ToolChoice::Auto => json!({
             "model": model,
             "messages": messages,
-            "tools": build_chat_tools(),
+            "tools": build_chat_tools(&request.locale),
             "tool_choice": "auto",
             "temperature": 0.2,
             "stream": stream
@@ -107,7 +107,7 @@ fn build_responses_payload(
             "model": model,
             "instructions": build_system_message(request),
             "input": input,
-            "tools": build_responses_tools(),
+            "tools": build_responses_tools(&request.locale),
             "tool_choice": "auto",
             "temperature": 0.2,
             "stream": stream
@@ -137,7 +137,7 @@ fn build_anthropic_messages_payload(
             "model": model,
             "system": build_system_message(request),
             "messages": messages,
-            "tools": build_anthropic_tools(),
+            "tools": build_anthropic_tools(&request.locale),
             "tool_choice": { "type": "auto" },
             "temperature": 0.2,
             "max_tokens": 1200,
@@ -172,7 +172,7 @@ fn build_chat_messages(request: &SpaceAiAnalysisRequest) -> Vec<Value> {
     if chat_messages.is_empty() {
         chat_messages.push(json!({
             "role": "user",
-            "content": default_analysis_prompt(),
+            "content": default_analysis_prompt(&request.locale),
         }));
     }
 
@@ -378,7 +378,7 @@ fn build_text_messages(request: &SpaceAiAnalysisRequest) -> Vec<SpaceAiChatMessa
     if messages.is_empty() {
         messages.push(SpaceAiChatMessage {
             role: "user".to_string(),
-            content: default_analysis_prompt().to_string(),
+            content: default_analysis_prompt(&request.locale).to_string(),
         });
     }
 
@@ -387,8 +387,9 @@ fn build_text_messages(request: &SpaceAiAnalysisRequest) -> Vec<SpaceAiChatMessa
 
 fn build_system_message(request: &SpaceAiAnalysisRequest) -> String {
     format!(
-        "{}\n\n当前扫描结果：\n{}",
-        "你是磁盘空间分析助手。只基于用户提供的扫描结果判断，不编造未扫描路径。回答使用 Markdown，不要把整段回答包进代码块。输出中文，直说结论、风险和下一步操作。\n\n工作方式使用 ReAct：先判断当前信息是否足够；信息不足时调用 read_path_info 作为 Action 读取路径信息；收到 Observation 后继续判断；需要清理时调用 delete_path 生成用户确认请求。不要输出 Thought、Action、Observation 字样，也不要暴露内部推理过程。\n\n安全边界：不要建议直接删除系统目录、应用主目录或未知业务数据；高风险项必须提示通过官方卸载器、应用内清理或先备份。read_path_info 是只读操作，会自动执行。delete_path 只会进入用户对话内确认卡片，不会自动执行。需要删除时必须调用 delete_path，不要输出 rm、del、Remove-Item 或其他 shell 删除命令。",
+        "{}\n\n{}:\n{}",
+        system_instructions(&request.locale),
+        scan_result_heading(&request.locale),
         build_space_context(request)
     )
 }
@@ -417,19 +418,50 @@ fn to_text_payload_message(message: &SpaceAiChatMessage) -> Option<SpaceAiChatMe
     })
 }
 
-fn default_analysis_prompt() -> &'static str {
-    "请基于当前扫描结果做一次空间占用分析，优先指出可清理项、风险和下一步。"
+fn system_instructions(locale: &str) -> &'static str {
+    if is_english_locale(locale) {
+        "You are a disk space analysis assistant. Judge only from the scan result provided by the user, and do not invent paths that were not scanned. Use Markdown, and do not wrap the whole answer in a code block. Answer in English, even if file names, paths, or earlier messages contain another language. State conclusions, risks, and next steps directly.\n\nUse a ReAct-style workflow internally: first decide whether the current information is enough; when more information is needed, call read_path_info as the Action to inspect a path; after an Observation, continue the judgment; when cleanup is needed, call delete_path to create a user confirmation request. Do not print the words Thought, Action, or Observation, and do not expose internal reasoning.\n\nSafety boundaries: do not recommend directly deleting system directories, application roots, or unknown business data. High-risk items must mention using the official uninstaller, in-app cleanup, or making a backup first. read_path_info is read-only and runs automatically. delete_path only creates an in-chat confirmation card and never runs automatically. When deletion is needed, call delete_path; do not output rm, del, Remove-Item, or other shell deletion commands."
+    } else {
+        "你是磁盘空间分析助手。只基于用户提供的扫描结果判断，不编造未扫描路径。回答使用 Markdown，不要把整段回答包进代码块。输出中文，即使文件名、路径或历史消息包含其他语言也必须用中文。直说结论、风险和下一步操作。\n\n工作方式使用 ReAct：先判断当前信息是否足够；信息不足时调用 read_path_info 作为 Action 读取路径信息；收到 Observation 后继续判断；需要清理时调用 delete_path 生成用户确认请求。不要输出 Thought、Action、Observation 字样，也不要暴露内部推理过程。\n\n安全边界：不要建议直接删除系统目录、应用主目录或未知业务数据；高风险项必须提示通过官方卸载器、应用内清理或先备份。read_path_info 是只读操作，会自动执行。delete_path 只会进入用户对话内确认卡片，不会自动执行。需要删除时必须调用 delete_path，不要输出 rm、del、Remove-Item 或其他 shell 删除命令。"
+    }
+}
+
+fn scan_result_heading(locale: &str) -> &'static str {
+    if is_english_locale(locale) {
+        "Current scan result"
+    } else {
+        "当前扫描结果"
+    }
+}
+
+fn default_analysis_prompt(locale: &str) -> &'static str {
+    if is_english_locale(locale) {
+        "Analyze the current scan result, with priority cleanup targets, risks, and next steps."
+    } else {
+        "请基于当前扫描结果做一次空间占用分析，优先指出可清理项、风险和下一步。"
+    }
 }
 
 fn build_space_context(request: &SpaceAiAnalysisRequest) -> String {
-    let mut lines = vec![
-        format!("扫描目录：{}", request.path),
-        format!("总占用：{} bytes", request.total_size),
-        format!("文件数：{}", request.total_files),
-        format!("目录数：{}", request.total_dirs),
-        format!("不可读取项：{}", request.unreadable_entries),
-        "占用最大的扫描项：".to_string(),
-    ];
+    let mut lines = if is_english_locale(&request.locale) {
+        vec![
+            format!("Scan path: {}", request.path),
+            format!("Total usage: {} bytes", request.total_size),
+            format!("Files: {}", request.total_files),
+            format!("Directories: {}", request.total_dirs),
+            format!("Unreadable entries: {}", request.unreadable_entries),
+            "Largest scanned items:".to_string(),
+        ]
+    } else {
+        vec![
+            format!("扫描目录：{}", request.path),
+            format!("总占用：{} bytes", request.total_size),
+            format!("文件数：{}", request.total_files),
+            format!("目录数：{}", request.total_dirs),
+            format!("不可读取项：{}", request.unreadable_entries),
+            "占用最大的扫描项：".to_string(),
+        ]
+    };
 
     for (index, item) in request.top_items.iter().take(40).enumerate() {
         lines.push(format!(
@@ -446,6 +478,10 @@ fn build_space_context(request: &SpaceAiAnalysisRequest) -> String {
     }
 
     lines.join("\n")
+}
+
+fn is_english_locale(locale: &str) -> bool {
+    locale.eq_ignore_ascii_case("en-US") || locale.to_ascii_lowercase().starts_with("en")
 }
 
 fn truncate_chars(value: &str, limit: usize) -> String {
@@ -529,6 +565,7 @@ mod tests {
 
     fn request() -> SpaceAiAnalysisRequest {
         SpaceAiAnalysisRequest {
+            locale: "zh-CN".to_string(),
             path: "/tmp/root".to_string(),
             total_size: 0,
             total_files: 0,
@@ -538,5 +575,30 @@ mod tests {
             items: Vec::new(),
             messages: Vec::new(),
         }
+    }
+
+    #[test]
+    fn english_payload_requests_english_answer() {
+        let mut request = request();
+        request.locale = "en-US".to_string();
+
+        let payload = build_completion_payload(
+            &request,
+            AiProtocol::OpenAiChatCompletions,
+            "test-model",
+            false,
+            ToolChoice::Auto,
+            &[],
+        );
+
+        let system = payload["messages"][0]["content"].as_str().unwrap();
+        let user = payload["messages"][1]["content"].as_str().unwrap();
+        assert!(system.contains("Answer in English"));
+        assert!(system.contains("Current scan result"));
+        assert!(user.contains("Analyze the current scan result"));
+        assert!(payload["tools"][0]["function"]["description"]
+            .as_str()
+            .unwrap()
+            .contains("Read-only information"));
     }
 }
