@@ -168,6 +168,10 @@ body {
   border-radius: 1rem;
 }
 
+#root[data-system-titlebar="true"] {
+  border-radius: 0;
+}
+
 .skiff-main-layout {
   grid-template-columns: 232px minmax(0, 1fr);
 }

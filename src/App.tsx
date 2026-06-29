@@ -137,6 +137,7 @@ function App() {
   const [showAdvancedFeatures, setShowAdvancedFeatures] = useState(true);
   const [appVersion, setAppVersion] = useState<string | null>(null);
   const [appPlatform, setAppPlatform] = useState<AppInfo["platform"]>(getInitialAppPlatform);
+  const useSystemTitlebar = appPlatform === "macos";
   const [pageChrome, setPageChrome] = useState<PageChromeConfig>(null);
   const updatePageChrome = useCallback((next: PageChromeConfig) => {
     setPageChrome(next);
@@ -148,6 +149,24 @@ function App() {
     void refreshAppInfo();
     void refreshAppSettings();
   }, []);
+
+  useEffect(() => {
+    const root = document.getElementById("root");
+
+    if (!root) {
+      return;
+    }
+
+    if (useSystemTitlebar) {
+      root.dataset.systemTitlebar = "true";
+    } else {
+      delete root.dataset.systemTitlebar;
+    }
+
+    return () => {
+      delete root.dataset.systemTitlebar;
+    };
+  }, [useSystemTitlebar]);
 
   useEffect(() => {
     let disposed = false;
@@ -540,7 +559,6 @@ function App() {
   };
 
   const messageText = errorMessage ?? diskError;
-  const useSystemTitlebar = appPlatform === "macos";
   const classicPageChromeChange = appMode === "space" ? ignorePageChrome : updatePageChrome;
 
   return (
